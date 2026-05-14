@@ -63,13 +63,23 @@ properties + dragged-on KMZ).
 
 5. **Toggle "Show callout labels"** to show/hide the on-map name boxes for
    impacted properties (mirrors the labeled callouts on the existing
-   PowerPoint slide).
+   PowerPoint slide). Each box scales to fit its text, and you can **drag a
+   box anywhere on the map** — a red leader line keeps it tied to the
+   properties it labels. Nearby properties (within ~30 mi) share one box.
 
-6. **Export PNG** — downloads a snapshot of the live map with the callout
-   labels rendered onto it. The filename includes the storm name and advisory
-   date, e.g. `AL132025_20251030_summary.png`.
+6. **Style the track points.** In the **Track Points** side-panel section,
+   set a default icon (category icon, hurricane symbol, dot, square, or
+   triangle) and color (per-category or a single uniform color). To label or
+   restyle an individual point — e.g. tagging one as "Current Location" —
+   **click it on the map** and use the editor popup to set its label, icon,
+   and color. Labels show on the map and in the exported PNG.
 
-The right-hand side panel always lists the impacted properties, sortable by
+7. **Export PNG** — downloads a snapshot of the live map with the callout
+   boxes, leader lines, and track-point labels rendered onto it. The filename
+   includes the storm name and advisory date, e.g.
+   `AL132025_20251030_summary.png`.
+
+The right-hand side panel also lists the impacted properties, sortable by
 distance to track, name, or in-cone status. Click a row to fly the map to
 that property.
 

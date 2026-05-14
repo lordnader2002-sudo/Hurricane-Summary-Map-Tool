@@ -21,6 +21,9 @@
       impactedCount: document.getElementById('impactedCount'),
       impactedList: document.getElementById('impactedList'),
       sortBy: document.getElementById('sortBy'),
+      trackShapeDefault: document.getElementById('trackShapeDefault'),
+      trackColorByCategory: document.getElementById('trackColorByCategory'),
+      trackColorDefault: document.getElementById('trackColorDefault'),
     };
 
     const state = {
@@ -66,6 +69,38 @@
     });
 
     els.sortBy.addEventListener('change', renderImpactedList);
+
+    initTrackControls();
+
+    // --- Track point default controls ---
+    function initTrackControls() {
+      HurricaneMap.TRACK_SHAPES.forEach(shape => {
+        const o = document.createElement('option');
+        o.value = shape;
+        o.textContent = HurricaneMap.TRACK_SHAPE_LABEL[shape];
+        els.trackShapeDefault.appendChild(o);
+      });
+      const defaults = ctrl.getTrackDefaults();
+      els.trackShapeDefault.value = defaults.shape;
+      els.trackColorByCategory.checked = defaults.colorByCategory;
+      els.trackColorDefault.value = defaults.color;
+      els.trackColorDefault.disabled = defaults.colorByCategory;
+
+      els.trackShapeDefault.addEventListener('change', applyTrackDefaults);
+      els.trackColorByCategory.addEventListener('change', () => {
+        els.trackColorDefault.disabled = els.trackColorByCategory.checked;
+        applyTrackDefaults();
+      });
+      els.trackColorDefault.addEventListener('input', applyTrackDefaults);
+    }
+
+    function applyTrackDefaults() {
+      ctrl.setTrackDefaults({
+        shape: els.trackShapeDefault.value,
+        color: els.trackColorDefault.value,
+        colorByCategory: els.trackColorByCategory.checked,
+      });
+    }
 
     // --- Handlers ---
     async function handleFilesUpload(fileList) {

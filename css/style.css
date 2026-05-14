@@ -242,27 +242,123 @@ body {
   padding: 12px;
 }
 
-/* On-map property callout (mirrors the orange-bordered black box from the slide) */
+/* On-map property callout (mirrors the red-outlined black box from the slide).
+   Box width/height is set explicitly by map.js (measured from the text), so it
+   always scales to its content. The box is draggable. */
 .property-callout {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
   background: #000;
   color: #fff;
   border: 2px solid var(--impacted);
   border-radius: 3px;
   padding: 4px 7px;
   font-size: 11px;
-  line-height: 1.25;
+  line-height: 14px;
   font-weight: 600;
   white-space: nowrap;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-  pointer-events: none;
   text-align: center;
+  cursor: move;
 }
 .property-callout .callout-line { display: block; }
 
-/* Override Leaflet's default divIcon background */
+/* Override Leaflet's default divIcon background; the box is draggable */
 .leaflet-div-icon.callout-wrapper {
   background: transparent;
   border: 0;
+  cursor: move;
+}
+
+/* Permanent track-point label (white pill above the icon) */
+.leaflet-tooltip.track-label {
+  background: #ffffff;
+  color: var(--text);
+  border: 1px solid #999999;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+.leaflet-tooltip.track-label::before { display: none; }
+
+/* Track-point click editor (inside a Leaflet popup) */
+.track-editor { min-width: 190px; font-size: 13px; }
+.track-editor-title { font-weight: 700; color: var(--text); }
+.track-editor-sub {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.track-editor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.track-editor-row span { color: var(--muted); }
+.track-editor-row input[type="text"],
+.track-editor-row select {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 3px;
+  font-size: 12px;
+}
+.track-editor-row input[type="color"] {
+  width: 40px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 3px;
+}
+.track-editor-reset {
+  margin-top: 4px;
+  width: 100%;
+  padding: 5px;
+  background: #fff;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.track-editor-reset:hover { background: #eef2f6; }
+
+/* Side-panel "Track Points" defaults */
+.track-defaults { font-size: 13px; }
+.track-default-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.track-default-row select {
+  padding: 3px 6px;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 3px;
+  font-size: 13px;
+}
+.track-default-row input[type="color"] {
+  width: 44px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 3px;
+}
+.track-default-row input[type="color"]:disabled { opacity: 0.4; }
+
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  margin: 8px 0 0;
+  line-height: 1.4;
 }
 
 /* Loading overlay */

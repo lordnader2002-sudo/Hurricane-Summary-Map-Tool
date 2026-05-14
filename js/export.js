@@ -1,25 +1,32 @@
-/* global leafletImage */
+/* global leafletImage, HurricaneMap */
 /*
  * PNG export for the live Leaflet map.
  *
- * leaflet-image rasterizes tiles + vector overlays + image markers, but it
- * cannot capture HTML divIcons (our orange-bordered callout boxes). After it
- * returns, we draw the callouts onto the same canvas using the live map's
- * coordinate→pixel projection, then trigger a file download.
+ * leaflet-image rasterizes tiles + vector overlays (cone, watch/warning lines,
+ * track line, leader lines) + image markers (track-point SVG icons, property
+ * dots). It cannot capture HTML divIcons or tooltips, so after it returns we
+ * draw two things onto the same canvas using the live map's projection:
+ *   - the property callout boxes, at their current (possibly dragged) spots
+ *   - the track-point text labels
+ * then trigger a file download.
  */
 (function () {
   'use strict';
 
-  function exportPng(controller, opts) {
-    opts = opts || {};
+  const TRACK_LABEL_FONT =
+    '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+  function exportPng(controller) {
     const map = controller.getMap();
-    const { storm, properties } = controller.getCurrent();
+    const { storm } = controller.getCurrent();
+    const overlays = controller.getOverlayLabels();
 
     return new Promise((resolve, reject) => {
       leafletImage(map, (err, canvas) => {
         if (err) return reject(err);
         try {
-          drawCallouts(canvas, map, properties);
+          drawCallouts(canvas, map, overlays.callouts);
+          drawTrackLabels(canvas, map, overlays.trackLabels);
           drawAttribution(canvas, storm);
           canvas.toBlob(blob => {
             const filename = buildFilename(storm);
@@ -33,66 +40,73 @@
     });
   }
 
-  function drawCallouts(canvas, map, properties) {
+  function drawCallouts(canvas, map, callouts) {
+    if (!callouts || callouts.length === 0) return;
     const ctx = canvas.getContext('2d');
-    const impacted = (properties || []).filter(p => p.impacted);
-    if (impacted.length === 0) return;
-
-    // Re-cluster the same way map.js does so the export matches what's on screen
-    const projected = impacted.map(p => ({
-      item: p,
-      pt: map.latLngToContainerPoint([p.lat, p.lon]),
-    }));
-    const clusters = [];
-    const used = new Set();
-    const threshold = 36;
-    for (let i = 0; i < projected.length; i += 1) {
-      if (used.has(i)) continue;
-      const group = [projected[i]];
-      used.add(i);
-      for (let j = i + 1; j < projected.length; j += 1) {
-        if (used.has(j)) continue;
-        if (projected[i].pt.distanceTo(projected[j].pt) <= threshold) {
-          group.push(projected[j]);
-          used.add(j);
-        }
-      }
-      clusters.push(group);
-    }
-
     ctx.save();
-    ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = HurricaneMap.CALLOUT_FONT;
     ctx.textBaseline = 'top';
 
-    clusters.forEach(group => {
-      const lines = group.map(g => g.item.name);
-      const cx = group.reduce((s, g) => s + g.pt.x, 0) / group.length;
-      const cy = group.reduce((s, g) => s + g.pt.y, 0) / group.length;
+    const padX = HurricaneMap.CALLOUT_PAD_X;
+    const padY = HurricaneMap.CALLOUT_PAD_Y;
+    const lineH = HurricaneMap.CALLOUT_LINE_H;
+    const border = HurricaneMap.CALLOUT_BORDER;
 
-      const padX = 7, padY = 4, lineH = 14;
-      const widths = lines.map(t => ctx.measureText(t).width);
-      const w = Math.max.apply(null, widths) + padX * 2;
-      const h = lines.length * lineH + padY * 2;
+    callouts.forEach(c => {
+      const box = HurricaneMap.measureCalloutBox(c.lines);
+      const center = map.latLngToContainerPoint([c.position.lat, c.position.lng]);
+      const x = Math.round(center.x - box.width / 2);
+      const y = Math.round(center.y - box.height / 2);
 
-      // Anchor the box just above-right of the cluster centroid
-      const x = Math.round(cx + 6);
-      const y = Math.round(cy - h - 6);
-
-      // Black box w/ red border (matches the slide style)
+      // Black box with red border (matches the .property-callout slide style)
       ctx.fillStyle = '#000';
       ctx.strokeStyle = '#c00000';
-      ctx.lineWidth = 2;
-      roundRect(ctx, x, y, w, h, 3);
+      ctx.lineWidth = border;
+      roundRect(ctx, x + border / 2, y + border / 2,
+        box.width - border, box.height - border, 3);
       ctx.fill();
       ctx.stroke();
 
       ctx.fillStyle = '#fff';
-      lines.forEach((t, i) => {
-        const tw = widths[i];
-        ctx.fillText(t, x + (w - tw) / 2, y + padY + i * lineH);
+      c.lines.forEach((t, i) => {
+        const tw = ctx.measureText(t).width;
+        const lineX = x + (box.width - tw) / 2;
+        const lineY = y + border + padY + i * lineH + 1;
+        ctx.fillText(t, lineX, lineY);
       });
     });
+    ctx.restore();
+  }
 
+  function drawTrackLabels(canvas, map, trackLabels) {
+    if (!trackLabels || trackLabels.length === 0) return;
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.font = TRACK_LABEL_FONT;
+    ctx.textBaseline = 'top';
+
+    const padX = 6;
+    const padY = 2;
+    const h = 18;
+
+    trackLabels.forEach(l => {
+      const pt = map.latLngToContainerPoint([l.lat, l.lon]);
+      const tw = ctx.measureText(l.text).width;
+      const w = tw + padX * 2;
+      // Centered above the track point (mirrors the permanent tooltip)
+      const x = Math.round(pt.x - w / 2);
+      const y = Math.round(pt.y - 14 - h);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#999999';
+      ctx.lineWidth = 1;
+      roundRect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#1d2733';
+      ctx.fillText(l.text, x + padX, y + padY + 2);
+    });
     ctx.restore();
   }
 
@@ -104,10 +118,11 @@
 
     ctx.save();
     ctx.font = '600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    const padX = 10, padY = 6;
+    const padX = 10;
     const w = ctx.measureText(text).width + padX * 2;
     const h = 22;
-    const x = 12, y = 12;
+    const x = 12;
+    const y = 12;
 
     ctx.fillStyle = 'rgba(31, 78, 121, 0.92)';
     roundRect(ctx, x, y, w, h, 3);

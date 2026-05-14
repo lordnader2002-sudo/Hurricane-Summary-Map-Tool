@@ -58,6 +58,28 @@
       </section>
 
       <section class="panel-section">
+        <h3>Track Points</h3>
+        <div class="track-defaults">
+          <label class="track-default-row">
+            <span>Default icon</span>
+            <select id="trackShapeDefault"></select>
+          </label>
+          <label class="track-default-row">
+            <span>Color by category</span>
+            <input type="checkbox" id="trackColorByCategory" checked />
+          </label>
+          <label class="track-default-row">
+            <span>Default color</span>
+            <input type="color" id="trackColorDefault" value="#1f4e79" disabled />
+          </label>
+        </div>
+        <p class="hint">
+          Click any track point on the map to give it a label or change its
+          icon and color individually.
+        </p>
+      </section>
+
+      <section class="panel-section">
         <h3>Impacted Properties <span class="count" id="impactedCount">0</span></h3>
         <div class="sort-controls">
           <label for="sortBy">Sort:</label>
@@ -67,6 +89,10 @@
             <option value="cone">In cone first</option>
           </select>
         </div>
+        <p class="hint">
+          Drag a callout box on the map to reposition it — a red line keeps it
+          tied to its properties.
+        </p>
         <ol class="impacted-list" id="impactedList"></ol>
       </section>
     </aside>
