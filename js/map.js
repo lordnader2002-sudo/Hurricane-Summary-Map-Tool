@@ -119,6 +119,12 @@
     const map = L.map(containerId, {
       preferCanvas: true,
       worldCopyJump: true,
+      // Fractional zoom: each whole level doubles the scale, which is too
+      // coarse for framing a forecast track. Buttons step half a level;
+      // scroll-wheel and auto-fit snap to quarter levels.
+      zoomSnap: 0.25,
+      zoomDelta: 0.5,
+      wheelPxPerZoomLevel: 120,
     }).setView([30, -75], 4);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
