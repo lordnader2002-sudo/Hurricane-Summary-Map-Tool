@@ -17,6 +17,7 @@
       status: document.getElementById('status'),
       stormMeta: document.getElementById('stormMeta'),
       categoryLegend: document.getElementById('categoryLegend'),
+      wwLegend: document.getElementById('wwLegend'),
       impactedCount: document.getElementById('impactedCount'),
       impactedList: document.getElementById('impactedList'),
       sortBy: document.getElementById('sortBy'),
@@ -24,6 +25,7 @@
 
     const state = {
       storm: null,
+      parts: [],           // accumulated parsed parts (cone/track/ww/combined)
       rawProperties: [],   // un-impact-annotated
       properties: [],      // with inCone/distMiles/impacted
       bufferMiles: parseInt(els.bufferSlider.value, 10),
@@ -32,7 +34,10 @@
     const ctrl = HurricaneMap.init('map');
 
     // --- Event wiring ---
-    els.kmzInput.addEventListener('change', e => handleKmzUpload(e.target.files[0]));
+    els.kmzInput.addEventListener('change', e => {
+      handleFilesUpload(e.target.files);
+      e.target.value = '';   // allow re-selecting the same file later
+    });
     els.csvInput.addEventListener('change', e => handleCsvUpload(e.target.files[0]));
 
     els.bufferSlider.addEventListener('input', e => {
@@ -63,27 +68,41 @@
     els.sortBy.addEventListener('change', renderImpactedList);
 
     // --- Handlers ---
-    async function handleKmzUpload(file) {
-      if (!file) return;
-      setStatus(`Loading ${file.name}…`);
+    async function handleFilesUpload(fileList) {
+      const files = Array.from(fileList || []);
+      if (files.length === 0) return;
+      setStatus(`Loading ${files.length} file(s)…`);
       try {
-        const storm = await HurricaneKMZ.parseKmzFile(file);
+        const newParts = await HurricaneKMZ.parseToParts(files);
+        // Accumulate parts across uploads; a newly-uploaded part replaces any
+        // existing part of the same kind (e.g. re-uploading an updated CONE).
+        newParts.forEach(np => {
+          state.parts = state.parts.filter(p => p.kind !== np.kind);
+          state.parts.push(np);
+        });
+        const storm = HurricaneKMZ.mergeParts(state.parts);
         state.storm = storm;
         ctrl.setStorm(storm);
         renderStormMeta();
         renderCategoryLegend();
+        renderWWLegend();
         recomputeAndRender();
         ctrl.fit();
         els.exportBtn.disabled = false;
+
+        const bits = [
+          `${storm.trackPoints.features.length} track points`,
+          storm.cone ? 'cone present' : 'no cone',
+          storm.ww.length ? `${storm.ww.length} watch/warning segment(s)` : null,
+        ].filter(Boolean);
+        const srcTxt = storm.sources.length ? storm.sources.join(' + ') : 'storm';
         setStatus(
-          `Loaded "${storm.stormName}" — `
-          + `${storm.trackPoints.features.length} track points, `
-          + `${storm.cone ? 'cone present' : 'no cone polygon'}`,
+          `Loaded ${srcTxt} for "${storm.stormName}" — ${bits.join(', ')}`,
           'success'
         );
       } catch (err) {
         console.error(err);
-        setStatus('KMZ load failed: ' + (err && err.message ? err.message : err), 'error');
+        setStatus('Load failed: ' + (err && err.message ? err.message : err), 'error');
       }
     }
 
@@ -178,11 +197,14 @@
         els.stormMeta.textContent = 'No storm loaded';
         return;
       }
-      const parts = [state.storm.stormName];
-      if (state.storm.advisoryDate) parts.push(state.storm.advisoryDate);
+      const meta = [state.storm.stormName];
+      if (state.storm.advisoryDate) meta.push(state.storm.advisoryDate);
       const tp = state.storm.trackPoints && state.storm.trackPoints.features.length;
-      if (tp) parts.push(`${tp} track points`);
-      els.stormMeta.textContent = parts.join(' · ');
+      if (tp) meta.push(`${tp} track points`);
+      if (state.storm.sources && state.storm.sources.length) {
+        meta.push(state.storm.sources.join(' + '));
+      }
+      els.stormMeta.textContent = meta.join(' · ');
     }
 
     function renderCategoryLegend() {
@@ -197,6 +219,25 @@
         li.appendChild(img);
         li.appendChild(document.createTextNode(' ' + (labels[cat] || cat)));
         els.categoryLegend.appendChild(li);
+      });
+    }
+
+    function renderWWLegend() {
+      els.wwLegend.innerHTML = '';
+      if (!state.storm || !state.storm.ww || state.storm.ww.length === 0) return;
+      // One legend row per distinct watch/warning category present
+      const seen = new Map();
+      state.storm.ww.forEach(seg => {
+        if (!seen.has(seg.category)) seen.set(seg.category, seg);
+      });
+      seen.forEach(seg => {
+        const li = document.createElement('li');
+        const sw = document.createElement('span');
+        sw.className = 'swatch ww-line';
+        sw.style.background = seg.color;
+        li.appendChild(sw);
+        li.appendChild(document.createTextNode(' ' + seg.label));
+        els.wwLegend.appendChild(li);
       });
     }
 

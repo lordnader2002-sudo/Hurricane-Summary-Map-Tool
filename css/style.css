@@ -173,6 +173,13 @@ body {
 }
 .legend.categories { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--panel-border); }
 .legend.categories img { width: 18px; height: 18px; }
+.legend.ww { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--panel-border); }
+.legend.ww:empty { display: none; }
+.swatch.ww-line {
+  height: 5px;
+  border: 0;
+  border-radius: 2px;
+}
 
 .sort-controls {
   display: flex;

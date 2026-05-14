@@ -1,11 +1,11 @@
 # Hurricane Summary Map Tool
 
 A self-contained, browser-based tool for producing the hurricane summary map
-deliverable: upload a NOAA hurricane KMZ and a properties CSV, and the tool
-overlays the storm track + cone on a map and auto-highlights any company
-properties that fall inside the cone or within an adjustable distance of the
-track centerline. Export the result as a PNG for inclusion in your summary
-slides.
+deliverable: upload NOAA hurricane GIS file(s) and a properties CSV, and the
+tool overlays the storm track, cone, and coastal watches/warnings on a map and
+auto-highlights any company properties that fall inside the cone or within an
+adjustable distance of the track centerline. Export the result as a PNG for
+inclusion in your summary slides.
 
 It replaces the current manual process (Google Maps + screenshot of pinned
 properties + dragged-on KMZ).
@@ -20,10 +20,26 @@ properties + dragged-on KMZ).
    # then visit http://localhost:8000/
    ```
 
-2. **Upload KMZ** — pick the latest NOAA file (e.g.
-   `al132025_best_track.kmz` or a 5-day forecast KMZ). The tool understands
-   both best-track files (point markers + wind-radii polygons) and forecast
-   files (cone of uncertainty polygon).
+2. **Upload KMZ / ZIP** — pick the latest NOAA file(s). The button accepts
+   **multiple files at once**, so you can select all the pieces of an advisory
+   together. Supported inputs:
+
+   - A combined **best-track `.kmz`** (track points + wind-radii polygons in
+     one file).
+   - The NHC per-advisory **`CONE` / `TRACK` / `WW` `.kmz` files** — for an
+     active storm the NHC splits each advisory into three KMZs (cone,
+     forecast track, coastal watches & warnings). Select all three together,
+     or add them one at a time; the tool classifies each by name/content and
+     merges them into one storm. Re-uploading a file of the same type (e.g. a
+     newer `CONE`) replaces the old one.
+   - The NHC **5-day shapefile bundle (`.zip`)** — the zipped `.shp/.dbf/.shx`
+     set. The tool reads the cone polygon, forecast track line, forecast
+     points, and any watch/warning shapefiles inside it.
+   - A `.zip` containing `.kmz`/`.kml` files also works.
+
+   Watches & warnings are drawn as colored coastal segments (Hurricane
+   Warning red, Hurricane Watch pink, TS Warning blue, TS Watch yellow,
+   Storm Surge purple/teal) and listed in the legend.
 
 3. **Upload Properties CSV** — pick a CSV containing your retail properties.
    The expected columns are flexible:
@@ -61,7 +77,7 @@ that property.
 
 A property is "impacted" if **either**:
 
-- It lies inside the cone / wind-radii polygon from the KMZ, **or**
+- It lies inside the cone / wind-radii polygon from the KMZ or shapefile, **or**
 - It is within the user-chosen buffer distance (default 100 mi) of the storm
   track centerline.
 
@@ -71,7 +87,8 @@ The cone test uses `@turf/boolean-point-in-polygon`; the buffer test uses
 ## Tech
 
 - [Leaflet](https://leafletjs.com/) + OpenStreetMap tiles (no API key, no billing)
-- [JSZip](https://stuk.github.io/jszip/) for unzipping the `.kmz`
+- [JSZip](https://stuk.github.io/jszip/) for unzipping the `.kmz` / `.zip`
+- [shpjs](https://github.com/calvinmetcalf/shapefile-js) for parsing shapefile bundles
 - [PapaParse](https://www.papaparse.com/) for CSV
 - [Turf.js](https://turfjs.org/) for geospatial math
 - [leaflet-image](https://github.com/mapbox/leaflet-image) for PNG export
@@ -87,13 +104,14 @@ runs locally). The only external request at runtime is OpenStreetMap tiles
 ```
 index.html        - UI shell
 css/style.css     - Styling (mimics the existing summary-slide aesthetic)
-js/kmz.js         - KMZ → KML → track points / cone / icons
+js/kmz.js         - KMZ/KML parsing, CONE/TRACK/WW classification, multi-file merge
+js/shapefile.js   - NHC shapefile .zip parsing (via shpjs)
 js/csv.js         - CSV parsing + Nominatim fallback geocoding
 js/impact.js      - Cone-containment + buffer-distance impact logic
-js/map.js         - Leaflet map setup, layers, callout rendering
+js/map.js         - Leaflet map setup, layers, callout + watch/warning rendering
 js/export.js      - PNG export (canvas + manual callout rendering)
 js/app.js         - Wires the UI controls to the modules above
-vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, leaflet-image
+vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, leaflet-image, shpjs
 scripts/          - Headless Node smoke test
 ```
 
@@ -115,11 +133,13 @@ Provide your own. NOAA hurricane KMZs are available from the National
 Hurricane Center (https://www.nhc.noaa.gov/), under "GIS data" for each
 active or historical storm.
 
-Note on KMZ types:
+Note on file types:
 
-- **Forecast KMZ** (e.g. the 5-day cone) contains a large cone-of-uncertainty
-  polygon. Properties under the cone will be flagged immediately — this is
-  the typical "what's at risk?" workflow.
+- **Forecast products** (the 5-day cone, as either a KMZ or a shapefile
+  `.zip`) contain a large cone-of-uncertainty polygon. Properties under the
+  cone are flagged immediately — this is the typical "what's at risk?"
+  workflow. For an active storm the NHC splits the advisory into separate
+  `CONE` / `TRACK` / `WW` KMZ files; upload them together.
 - **Best-track KMZ** (post-storm historical track) contains the actual storm
   centerline plus tighter wind-radii polygons. Many fewer properties will
   fall inside; you may need to widen the buffer slider to see impacts on
@@ -128,12 +148,16 @@ Note on KMZ types:
 ## Verifying parsing locally (optional)
 
 For headless testing, the repo includes a Node smoke test that exercises the
-KMZ + CSV + impact pipeline without a browser:
+KMZ, multi-file merge, shapefile `.zip`, CSV, and impact pipeline without a
+browser:
 
 ```sh
-npm install jszip jsdom papaparse @turf/turf
-node scripts/smoke-test.js path/to/storm.kmz path/to/properties.csv
+npm install
+npm run smoke-test -- path/to/storm.kmz path/to/properties.csv
 ```
+
+The `.kmz` and `.csv` arguments are optional — the multi-file-merge and
+shapefile tests run on synthesized fixtures regardless.
 
 ## Known limitations (v1)
 
