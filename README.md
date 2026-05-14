@@ -69,10 +69,12 @@ properties + dragged-on KMZ).
 
 6. **Style the track points.** In the **Track Points** side-panel section,
    set a default icon (category icon, hurricane symbol, dot, square, or
-   triangle) and color (per-category or a single uniform color). To label or
-   restyle an individual point — e.g. tagging one as "Current Location" —
-   **click it on the map** and use the editor popup to set its label, icon,
-   and color. Labels show on the map and in the exported PNG.
+   triangle) and color (per-category or a single uniform color). The
+   hurricane symbol is a colored circular badge with a white typhoon glyph,
+   matching the NHC / Google Maps storm markers. To label or restyle an
+   individual point — e.g. tagging one as "Current Location" — **click it on
+   the map** and use the editor popup to set its label, icon, and color.
+   Labels show on the map and in the exported PNG.
 
 7. **Export PNG** — downloads a snapshot of the live map with the callout
    boxes, leader lines, and track-point labels rendered onto it. The filename
@@ -82,6 +84,11 @@ properties + dragged-on KMZ).
 The right-hand side panel also lists the impacted properties, sortable by
 distance to track, name, or in-cone status. Click a row to fly the map to
 that property.
+
+The map supports **fractional zoom** — the +/- buttons step half a zoom
+level and the scroll wheel is finer still — so you can frame the full
+forecast track precisely before exporting, instead of being stuck between
+one zoom level that's too tight and the next that's too loose.
 
 ## What gets highlighted
 
@@ -120,8 +127,8 @@ js/kmz.js         - KMZ/KML parsing, CONE/TRACK/WW classification, multi-file me
 js/shapefile.js   - NHC shapefile .zip parsing (via shpjs)
 js/csv.js         - CSV parsing + Nominatim fallback geocoding
 js/impact.js      - Cone-containment + buffer-distance impact logic
-js/map.js         - Leaflet map setup, layers, callout + watch/warning rendering
-js/export.js      - PNG export (canvas + manual callout rendering)
+js/map.js         - Leaflet map setup, track-point styling, callouts, watch/warning rendering
+js/export.js      - PNG export (composites the rendered map straight from the DOM)
 js/app.js         - Wires the UI controls to the modules above
 vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, shpjs
 scripts/          - Headless Node smoke test
@@ -171,11 +178,12 @@ npm run smoke-test -- path/to/storm.kmz path/to/properties.csv
 The `.kmz` and `.csv` arguments are optional — the multi-file-merge and
 shapefile tests run on synthesized fixtures regardless.
 
-## Known limitations (v1)
+## Known limitations
 
 - PNG export only — PDF / CSV-of-impacted exports are not yet implemented.
 - Geocoding is rate-limited to 1 req/sec (Nominatim policy). If your CSV
   has many rows missing lat/lon, expect a wait. Pre-geocoding is strongly
   recommended.
-- No persistence — uploaded files are not retained between page reloads.
+- No persistence — uploaded files, track-point styling, and callout
+  placements are not retained between page reloads.
 - One storm at a time.
