@@ -62,10 +62,26 @@
 
   // --- SVG icon generation -------------------------------------------------
 
+  // Streamline "Typhoon Fill" glyph path (16x16 coordinate space). The inner
+  // subpath is the eye; fill-rule:evenodd cuts it out as a hole.
+  const TYPHOON_PATH =
+    'M13.333333333333332 8c0 3.6819999999999995 -2.9846666666666666 6.666666666666666 ' +
+    '-6.666666666666666 6.666666666666666 -1.5973333333333333 0 -3.066 -0.5626666666666666 ' +
+    '-4.214666666666666 -1.5006666666666666l-0.6566666666666666 -0.5366666666666666c-0.30333333333333334 ' +
+    '-0.248 -0.10666666666666666 -0.7386666666666667 0.2833333333333333 -0.7086666666666666l0.8453333333333333 ' +
+    '0.064c0.48 0.036 0.976 0.006666666666666666 1.4393333333333331 -0.08399999999999999A5.318666666666666 ' +
+    '5.318666666666666 0 0 1 2.6666666666666665 8C2.6666666666666665 4.318 5.651999999999999 ' +
+    '1.3333333333333333 9.333333333333332 1.3333333333333333c1.5979999999999999 0 3.0666666666666664 ' +
+    '0.5626666666666666 4.215333333333334 1.5013333333333332l0.6566666666666666 0.536c0.30333333333333334 ' +
+    '0.248 0.10666666666666666 0.7386666666666667 -0.2833333333333333 0.7086666666666666l-0.8453333333333333 ' +
+    '-0.064a5.448666666666666 5.448666666666666 0 0 0 -1.4393333333333331 0.08399999999999999A5.319333333333333 ' +
+    '5.319333333333333 0 0 1 13.333333333333332 8Zm-5.333333333333333 2a2 2 0 1 0 0 -4 2 2 0 0 0 0 4Z';
+
   function svgIcon(shape, color, size) {
     const s = size || 24;
     const stroke = '#ffffff';
     let inner;
+    let viewBox = '0 0 24 24';
     if (shape === 'square') {
       inner = `<rect x="3" y="3" width="18" height="18" rx="2"
         fill="${color}" stroke="${stroke}" stroke-width="1.5"/>`;
@@ -73,22 +89,20 @@
       inner = `<path d="M12 2 L22 21 L2 21 Z"
         fill="${color}" stroke="${stroke}" stroke-width="1.5" stroke-linejoin="round"/>`;
     } else if (shape === 'hurricane') {
-      // Colored disc + a white tropical-cyclone glyph: two point-symmetric
-      // comma arms curling around an open eye — the swirl used on NHC /
-      // Google Maps storm markers.
-      const arm = '<path d="M11.3 5.6 A 4.0 4.0 0 1 1 13.1 14.6"/>';
+      // Streamline "Typhoon" glyph, recolored to the chosen color. It is drawn
+      // twice: a white halo stroke underneath for legibility on any map
+      // background, then the colored fill (evenodd keeps the eye open) on top.
+      viewBox = '0 0 16 16';
       inner =
-        `<circle cx="12" cy="12" r="11.25" fill="${color}" stroke="${stroke}" stroke-width="1.5"/>` +
-        `<g fill="none" stroke="${stroke}" stroke-width="3.2" stroke-linecap="round">` +
-          `<g>${arm}</g>` +
-          `<g transform="rotate(180 12 12)">${arm}</g>` +
-        `</g>`;
+        `<path d="${TYPHOON_PATH}" fill="none" stroke="${stroke}" ` +
+        `stroke-width="1.1" stroke-linejoin="round"/>` +
+        `<path d="${TYPHOON_PATH}" fill="${color}" fill-rule="evenodd"/>`;
     } else {
       // dot
       inner = `<circle cx="12" cy="12" r="9" fill="${color}" stroke="${stroke}" stroke-width="1.5"/>`;
     }
     const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${s}" height="${s}">${inner}</svg>`;
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${s}" height="${s}">${inner}</svg>`;
     return 'data:image/svg+xml;base64,' + btoa(svg);
   }
 
