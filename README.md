@@ -101,7 +101,9 @@ The cone test uses `@turf/boolean-point-in-polygon`; the buffer test uses
 - [shpjs](https://github.com/calvinmetcalf/shapefile-js) for parsing shapefile bundles
 - [PapaParse](https://www.papaparse.com/) for CSV
 - [Turf.js](https://turfjs.org/) for geospatial math
-- [leaflet-image](https://github.com/mapbox/leaflet-image) for PNG export
+
+PNG export composites the already-rendered map tiles, vector canvas, and
+marker icons straight from the DOM — no extra library, and it can't hang.
 
 All vendor libraries are self-hosted in the `vendor/` folder and referenced by
 `index.html` with relative paths — no CDN, so the tool works on locked-down
@@ -121,7 +123,7 @@ js/impact.js      - Cone-containment + buffer-distance impact logic
 js/map.js         - Leaflet map setup, layers, callout + watch/warning rendering
 js/export.js      - PNG export (canvas + manual callout rendering)
 js/app.js         - Wires the UI controls to the modules above
-vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, leaflet-image, shpjs
+vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, shpjs
 scripts/          - Headless Node smoke test
 ```
 

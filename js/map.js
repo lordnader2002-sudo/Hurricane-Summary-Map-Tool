@@ -73,13 +73,16 @@
       inner = `<path d="M12 2 L22 21 L2 21 Z"
         fill="${color}" stroke="${stroke}" stroke-width="1.5" stroke-linejoin="round"/>`;
     } else if (shape === 'hurricane') {
-      // Filled circle + a white cyclone glyph (two spiral arms + eye)
-      inner = `<circle cx="12" cy="12" r="11" fill="${color}" stroke="${stroke}" stroke-width="1.5"/>
-        <g stroke="${stroke}" stroke-width="2.4" fill="none" stroke-linecap="round">
-          <path d="M12 12 C 12 6.5, 17 6, 17.5 10"/>
-          <path d="M12 12 C 12 17.5, 7 18, 6.5 14"/>
-        </g>
-        <circle cx="12" cy="12" r="1.7" fill="${stroke}"/>`;
+      // Colored disc + a white tropical-cyclone glyph: two point-symmetric
+      // comma arms curling around an open eye — the swirl used on NHC /
+      // Google Maps storm markers.
+      const arm = '<path d="M11.3 5.6 A 4.0 4.0 0 1 1 13.1 14.6"/>';
+      inner =
+        `<circle cx="12" cy="12" r="11.25" fill="${color}" stroke="${stroke}" stroke-width="1.5"/>` +
+        `<g fill="none" stroke="${stroke}" stroke-width="3.2" stroke-linecap="round">` +
+          `<g>${arm}</g>` +
+          `<g transform="rotate(180 12 12)">${arm}</g>` +
+        `</g>`;
     } else {
       // dot
       inner = `<circle cx="12" cy="12" r="9" fill="${color}" stroke="${stroke}" stroke-width="1.5"/>`;

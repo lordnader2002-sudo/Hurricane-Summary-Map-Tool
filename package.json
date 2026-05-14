@@ -1,6 +1,6 @@
 {
   "name": "hurricane-summary-map-tool",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Browser-based tool that overlays NOAA hurricane KMZ/shapefile tracks on a map and auto-highlights company properties inside the cone or within a distance buffer.",
   "private": true,
   "scripts": {
@@ -12,7 +12,6 @@
     "jsdom": "^29.1.1",
     "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
-    "leaflet-image": "^0.4.0",
     "papaparse": "^5.5.3",
     "shpjs": "^4.0.4"
   }
