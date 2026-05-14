@@ -7,9 +7,13 @@
     "smoke-test": "node scripts/smoke-test.js"
   },
   "devDependencies": {
-    "@turf/turf": "^7.3.5",
+    "@turf/turf": "^6.5.0",
     "jsdom": "^29.1.1",
     "jszip": "^3.10.1",
     "papaparse": "^5.5.3"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "leaflet-image": "^0.4.0"
   }
 }
