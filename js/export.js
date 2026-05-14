@@ -1,14 +1,19 @@
-/* global leafletImage, HurricaneMap */
+/* global HurricaneMap */
 /*
  * PNG export for the live Leaflet map.
  *
- * leaflet-image rasterizes tiles + vector overlays (cone, watch/warning lines,
- * track line, leader lines) + image markers (track-point SVG icons, property
- * dots). It cannot capture HTML divIcons or tooltips, so after it returns we
- * draw two things onto the same canvas using the live map's projection:
- *   - the property callout boxes, at their current (possibly dragged) spots
- *   - the track-point text labels
- * then trigger a file download.
+ * Rather than re-fetching tiles/markers (the old leaflet-image approach, which
+ * could hang indefinitely when an image failed to load), this composites the
+ * export straight from what the browser has *already rendered* in the DOM:
+ *
+ *   1. Tile <img> elements from the tile pane
+ *   2. The canvas the Leaflet canvas-renderer already drew vectors onto
+ *      (cone, watch/warning lines, track line, property dots, leader lines)
+ *   3. Track-point marker <img> icons from the marker pane
+ *
+ * Then the callout boxes and track-point text labels are drawn on top (those
+ * are HTML divIcons / tooltips, which aren't pixels we can copy). The whole
+ * thing is synchronous except the final toBlob — it cannot hang.
  */
 (function () {
   'use strict';
@@ -20,34 +25,72 @@
     const map = controller.getMap();
     const { storm } = controller.getCurrent();
     const overlays = controller.getOverlayLabels();
+    const container = map.getContainer();
 
     return new Promise((resolve, reject) => {
-      leafletImage(map, (err, canvas) => {
-        if (err) return reject(err);
-        try {
-          drawCallouts(canvas, map, overlays.callouts);
-          drawTrackLabels(canvas, map, overlays.trackLabels);
-          drawAttribution(canvas, storm);
-          canvas.toBlob(blob => {
-            const filename = buildFilename(storm);
-            triggerDownload(blob, filename);
-            resolve(filename);
-          }, 'image/png');
-        } catch (e) {
-          reject(e);
-        }
-      });
+      try {
+        const size = map.getSize();
+        const canvas = document.createElement('canvas');
+        canvas.width = size.x;
+        canvas.height = size.y;
+        const ctx = canvas.getContext('2d');
+        const base = container.getBoundingClientRect();
+
+        // Background (shows through where tiles haven't loaded)
+        ctx.fillStyle = '#dfe6ec';
+        ctx.fillRect(0, 0, size.x, size.y);
+
+        // 1. Map tiles — already loaded <img> elements in the tile pane
+        container.querySelectorAll('.leaflet-tile-pane img').forEach(img => {
+          if (!img.complete || !img.naturalWidth) return;
+          const r = img.getBoundingClientRect();
+          ctx.drawImage(img, r.left - base.left, r.top - base.top, r.width, r.height);
+        });
+
+        // 2. Vector overlays — the canvas-renderer canvas(es) in the overlay
+        //    pane already have the cone, ww lines, track line, property dots,
+        //    and red leader lines drawn on them.
+        container.querySelectorAll('.leaflet-overlay-pane canvas').forEach(c => {
+          const r = c.getBoundingClientRect();
+          ctx.drawImage(c, r.left - base.left, r.top - base.top, r.width, r.height);
+        });
+
+        // 3. Track-point marker icons (image markers, not divIcons)
+        container.querySelectorAll('.leaflet-marker-pane img').forEach(img => {
+          if (!img.complete || !img.naturalWidth) return;
+          const r = img.getBoundingClientRect();
+          ctx.drawImage(img, r.left - base.left, r.top - base.top, r.width, r.height);
+        });
+
+        // 4. Callout boxes + track labels (HTML overlays — drawn by hand)
+        drawCallouts(ctx, map, overlays.callouts);
+        drawTrackLabels(ctx, map, overlays.trackLabels);
+        drawAttribution(ctx, storm);
+
+        canvas.toBlob(blob => {
+          if (!blob) {
+            reject(new Error(
+              'Could not encode the image — a map tile may have tainted the '
+              + 'canvas. Try reloading the page so tiles load with CORS.'
+            ));
+            return;
+          }
+          const filename = buildFilename(storm);
+          triggerDownload(blob, filename);
+          resolve(filename);
+        }, 'image/png');
+      } catch (e) {
+        reject(e);
+      }
     });
   }
 
-  function drawCallouts(canvas, map, callouts) {
+  function drawCallouts(ctx, map, callouts) {
     if (!callouts || callouts.length === 0) return;
-    const ctx = canvas.getContext('2d');
     ctx.save();
     ctx.font = HurricaneMap.CALLOUT_FONT;
     ctx.textBaseline = 'top';
 
-    const padX = HurricaneMap.CALLOUT_PAD_X;
     const padY = HurricaneMap.CALLOUT_PAD_Y;
     const lineH = HurricaneMap.CALLOUT_LINE_H;
     const border = HurricaneMap.CALLOUT_BORDER;
@@ -78,15 +121,13 @@
     ctx.restore();
   }
 
-  function drawTrackLabels(canvas, map, trackLabels) {
+  function drawTrackLabels(ctx, map, trackLabels) {
     if (!trackLabels || trackLabels.length === 0) return;
-    const ctx = canvas.getContext('2d');
     ctx.save();
     ctx.font = TRACK_LABEL_FONT;
     ctx.textBaseline = 'top';
 
     const padX = 6;
-    const padY = 2;
     const h = 18;
 
     trackLabels.forEach(l => {
@@ -105,13 +146,12 @@
       ctx.stroke();
 
       ctx.fillStyle = '#1d2733';
-      ctx.fillText(l.text, x + padX, y + padY + 2);
+      ctx.fillText(l.text, x + padX, y + 4);
     });
     ctx.restore();
   }
 
-  function drawAttribution(canvas, storm) {
-    const ctx = canvas.getContext('2d');
+  function drawAttribution(ctx, storm) {
     const text = (storm && storm.stormName ? storm.stormName : 'Hurricane')
       + ' summary'
       + (storm && storm.advisoryDate ? ` — advisory ${storm.advisoryDate}` : '');
