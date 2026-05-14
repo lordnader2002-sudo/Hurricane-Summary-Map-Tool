@@ -76,8 +76,11 @@ The cone test uses `@turf/boolean-point-in-polygon`; the buffer test uses
 - [Turf.js](https://turfjs.org/) for geospatial math
 - [leaflet-image](https://github.com/mapbox/leaflet-image) for PNG export
 
-All vendor libraries are pulled from CDN by `index.html`. To run fully offline,
-download them into a local `vendor/` folder and update the `<script>` tags.
+All vendor libraries are self-hosted in the `vendor/` folder and referenced by
+`index.html` with relative paths — no CDN, so the tool works on locked-down
+networks and fully offline (map tiles still need internet, but everything else
+runs locally). The only external request at runtime is OpenStreetMap tiles
+(and Nominatim, if a CSV row needs geocoding).
 
 ## File layout
 
@@ -90,7 +93,21 @@ js/impact.js      - Cone-containment + buffer-distance impact logic
 js/map.js         - Leaflet map setup, layers, callout rendering
 js/export.js      - PNG export (canvas + manual callout rendering)
 js/app.js         - Wires the UI controls to the modules above
+vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, leaflet-image
+scripts/          - Headless Node smoke test
 ```
+
+## Hosting it for the team (GitHub Pages)
+
+Because the tool is plain static files, GitHub Pages can host it for free —
+coworkers just open a URL, no install. The repo's Pages is configured to
+deploy from the `main` branch root, so anything merged to `main` goes live at:
+
+```
+https://lordnader2002-sudo.github.io/hurricane-summary-map-tool/
+```
+
+Allow ~1 minute after a merge for the deploy to finish.
 
 ## Sample data
 

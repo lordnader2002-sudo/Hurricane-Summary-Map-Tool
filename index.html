@@ -5,12 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Hurricane Summary Map Tool</title>
 
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -76,16 +71,12 @@
     </aside>
   </main>
 
-  <!-- Vendor libs (CDN; can be swapped to local /vendor copies for offline use) -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
-  <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
-  <script src="https://unpkg.com/leaflet-image@0.4.0/leaflet-image.js"></script>
+  <!-- Vendor libs (self-hosted in /vendor so the tool works without CDN access) -->
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/jszip.min.js"></script>
+  <script src="vendor/papaparse.min.js"></script>
+  <script src="vendor/turf.min.js"></script>
+  <script src="vendor/leaflet-image.js"></script>
 
   <!-- App modules -->
   <script src="js/kmz.js"></script>
