@@ -1,0 +1,15 @@
+{
+  "name": "hurricane-summary-map-tool",
+  "version": "1.0.0",
+  "description": "Browser-based tool that overlays NOAA hurricane KMZ tracks on a map and auto-highlights company properties inside the cone or within a distance buffer.",
+  "private": true,
+  "scripts": {
+    "smoke-test": "node scripts/smoke-test.js"
+  },
+  "devDependencies": {
+    "@turf/turf": "^7.3.5",
+    "jsdom": "^29.1.1",
+    "jszip": "^3.10.1",
+    "papaparse": "^5.5.3"
+  }
+}

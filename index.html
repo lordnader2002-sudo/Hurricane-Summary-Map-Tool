@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hurricane Summary Map Tool</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-title">Hurricane Summary Map Tool</div>
+    <div class="storm-meta" id="stormMeta">No storm loaded</div>
+  </header>
+
+  <div class="toolbar">
+    <label class="btn">
+      Upload KMZ
+      <input type="file" id="kmzInput" accept=".kmz,.kml" hidden />
+    </label>
+
+    <label class="btn">
+      Upload Properties CSV
+      <input type="file" id="csvInput" accept=".csv,text/csv" hidden />
+    </label>
+
+    <div class="buffer-control">
+      <label for="bufferSlider">Buffer:</label>
+      <input type="range" id="bufferSlider" min="0" max="500" step="10" value="100" />
+      <span id="bufferValue">100 mi</span>
+    </div>
+
+    <label class="checkbox">
+      <input type="checkbox" id="labelsToggle" checked />
+      Show callout labels
+    </label>
+
+    <button class="btn primary" id="exportBtn" disabled>Export PNG</button>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <main class="layout">
+    <div id="map"></div>
+
+    <aside class="side-panel">
+      <section class="panel-section">
+        <h3>Legend</h3>
+        <ul class="legend">
+          <li><span class="swatch cone"></span> Forecast cone</li>
+          <li><span class="swatch track"></span> Storm track</li>
+          <li><span class="swatch impacted"></span> Impacted property</li>
+          <li><span class="swatch normal"></span> Other property</li>
+        </ul>
+        <ul class="legend categories" id="categoryLegend"></ul>
+      </section>
+
+      <section class="panel-section">
+        <h3>Impacted Properties <span class="count" id="impactedCount">0</span></h3>
+        <div class="sort-controls">
+          <label for="sortBy">Sort:</label>
+          <select id="sortBy">
+            <option value="distance">Distance to track</option>
+            <option value="name">Name</option>
+            <option value="cone">In cone first</option>
+          </select>
+        </div>
+        <ol class="impacted-list" id="impactedList"></ol>
+      </section>
+    </aside>
+  </main>
+
+  <!-- Vendor libs (CDN; can be swapped to local /vendor copies for offline use) -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+  <script src="https://unpkg.com/leaflet-image@0.4.0/leaflet-image.js"></script>
+
+  <!-- App modules -->
+  <script src="js/kmz.js"></script>
+  <script src="js/csv.js"></script>
+  <script src="js/impact.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/export.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
