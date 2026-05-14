@@ -16,8 +16,8 @@
 
   <div class="toolbar">
     <label class="btn">
-      Upload KMZ
-      <input type="file" id="kmzInput" accept=".kmz,.kml" hidden />
+      Upload KMZ / ZIP
+      <input type="file" id="kmzInput" accept=".kmz,.kml,.zip" multiple hidden />
     </label>
 
     <label class="btn">
@@ -54,6 +54,7 @@
           <li><span class="swatch normal"></span> Other property</li>
         </ul>
         <ul class="legend categories" id="categoryLegend"></ul>
+        <ul class="legend ww" id="wwLegend"></ul>
       </section>
 
       <section class="panel-section">
@@ -77,9 +78,11 @@
   <script src="vendor/papaparse.min.js"></script>
   <script src="vendor/turf.min.js"></script>
   <script src="vendor/leaflet-image.js"></script>
+  <script src="vendor/shp.min.js"></script>
 
   <!-- App modules -->
   <script src="js/kmz.js"></script>
+  <script src="js/shapefile.js"></script>
   <script src="js/csv.js"></script>
   <script src="js/impact.js"></script>
   <script src="js/map.js"></script>

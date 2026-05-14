@@ -40,6 +40,7 @@
     // Layer groups so we can clear/redraw cleanly
     const layers = {
       cone: L.layerGroup().addTo(map),
+      ww: L.layerGroup().addTo(map),
       track: L.layerGroup().addTo(map),
       trackPoints: L.layerGroup().addTo(map),
       properties: L.layerGroup().addTo(map),
@@ -48,6 +49,7 @@
 
     L.control.layers(null, {
       'Forecast cone / wind radii': layers.cone,
+      'Watches & warnings': layers.ww,
       'Storm track': layers.track,
       'Track points': layers.trackPoints,
       'Properties': layers.properties,
@@ -61,6 +63,7 @@
     function setStorm(storm) {
       currentStorm = storm;
       layers.cone.clearLayers();
+      layers.ww.clearLayers();
       layers.track.clearLayers();
       layers.trackPoints.clearLayers();
 
@@ -68,6 +71,13 @@
 
       if (storm.cone) {
         L.geoJSON(storm.cone, { style: () => CONE_STYLE }).addTo(layers.cone);
+      }
+      if (storm.ww && storm.ww.length) {
+        storm.ww.forEach(seg => {
+          L.geoJSON(seg.geometry, {
+            style: () => ({ color: seg.color, weight: 5, opacity: 0.9, lineCap: 'butt' }),
+          }).bindTooltip(seg.label, { sticky: true }).addTo(layers.ww);
+        });
       }
       if (storm.trackLine) {
         L.geoJSON(storm.trackLine, { style: () => TRACK_STYLE }).addTo(layers.track);
@@ -189,8 +199,12 @@
         if (currentStorm.cone) extendBoundsFromGeoJSON(bounds, currentStorm.cone);
         if (currentStorm.trackLine) extendBoundsFromGeoJSON(bounds, currentStorm.trackLine);
         if (currentStorm.trackPoints) extendBoundsFromGeoJSON(bounds, currentStorm.trackPoints);
+        if (currentStorm.ww) {
+          currentStorm.ww.forEach(seg => extendBoundsFromGeoJSON(bounds, seg.geometry));
+        }
         any = currentStorm.cone || currentStorm.trackLine
-          || (currentStorm.trackPoints && currentStorm.trackPoints.features.length);
+          || (currentStorm.trackPoints && currentStorm.trackPoints.features.length)
+          || (currentStorm.ww && currentStorm.ww.length);
       }
       // Only include impacted properties in the bounds; otherwise CONUS-wide
       // datasets would zoom the map out to a useless extent.
@@ -233,7 +247,11 @@
   }
 
   function extendBoundsFromGeoJSON(bounds, gj) {
-    const features = gj.type === 'FeatureCollection' ? gj.features : [gj];
+    if (!gj) return;
+    // Accept a FeatureCollection, a Feature, or a bare geometry
+    const features = gj.type === 'FeatureCollection' ? gj.features
+      : gj.type === 'Feature' ? [gj]
+        : [{ geometry: gj }];
     features.forEach(f => {
       const g = f.geometry;
       if (!g) return;
