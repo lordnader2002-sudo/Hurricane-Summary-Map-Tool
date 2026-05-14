@@ -89,14 +89,14 @@
       inner = `<path d="M12 2 L22 21 L2 21 Z"
         fill="${color}" stroke="${stroke}" stroke-width="1.5" stroke-linejoin="round"/>`;
     } else if (shape === 'hurricane') {
-      // Streamline "Typhoon" glyph, recolored to the chosen color. It is drawn
-      // twice: a white halo stroke underneath for legibility on any map
-      // background, then the colored fill (evenodd keeps the eye open) on top.
-      viewBox = '0 0 16 16';
+      // Streamline "Typhoon" glyph in white on a colored circular badge — the
+      // chosen color fills the disc and shows through the open eye. The glyph
+      // is 16x16, scaled to ~14 units and centred inside the 24x24 viewBox.
       inner =
-        `<path d="${TYPHOON_PATH}" fill="none" stroke="${stroke}" ` +
-        `stroke-width="1.1" stroke-linejoin="round"/>` +
-        `<path d="${TYPHOON_PATH}" fill="${color}" fill-rule="evenodd"/>`;
+        `<circle cx="12" cy="12" r="11.25" fill="${color}" stroke="${stroke}" stroke-width="1.5"/>` +
+        `<g transform="translate(5,5) scale(0.875)">` +
+          `<path d="${TYPHOON_PATH}" fill="${stroke}" fill-rule="evenodd"/>` +
+        `</g>`;
     } else {
       // dot
       inner = `<circle cx="12" cy="12" r="9" fill="${color}" stroke="${stroke}" stroke-width="1.5"/>`;
