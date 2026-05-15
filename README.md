@@ -66,17 +66,27 @@ properties + dragged-on KMZ).
    PowerPoint slide). Each box scales to fit its text, and you can **drag a
    box anywhere on the map** — a red leader line keeps it tied to the
    properties it labels. Nearby properties (within ~30 mi) share one box.
+   **Click a callout box to edit the text inside** — e.g. to consolidate
+   names or add a note — and Reset restores the original property names.
 
-6. **Style the track points.** In the **Track Points** side-panel section,
+6. **Manually flag any property as impacted.** Click any property dot on the
+   map and the popup includes a *Mark as impacted* toggle. Flipping it on
+   turns the dot red and pulls it into the nearest callout cluster, even if
+   the algorithm wouldn't otherwise have flagged it; flipping it off does the
+   reverse. The override survives buffer-slider changes.
+
+7. **Style the track points.** In the **Track Points** side-panel section,
    set a default icon (category icon, hurricane symbol, dot, square, or
    triangle) and color (per-category or a single uniform color). The
    hurricane symbol is a colored circular badge with a white typhoon glyph,
    matching the NHC / Google Maps storm markers. To label or restyle an
    individual point — e.g. tagging one as "Current Location" — **click it on
-   the map** and use the editor popup to set its label, icon, and color.
-   Labels show on the map and in the exported PNG.
+   the map** and use the editor popup to set its label, icon, color, or a
+   free-form description. Labels show on the map and in the exported PNG;
+   descriptions stay off the map and surface in the side-panel track-point
+   list (expand "Track point list" to see all points and their notes).
 
-7. **Export PNG** — downloads a snapshot of the live map with the callout
+8. **Export PNG** — downloads a snapshot of the live map with the callout
    boxes, leader lines, and track-point labels rendered onto it. The filename
    includes the storm name and advisory date, e.g.
    `AL132025_20251030_summary.png`.
