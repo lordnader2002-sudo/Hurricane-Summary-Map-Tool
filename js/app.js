@@ -24,6 +24,8 @@
       trackShapeDefault: document.getElementById('trackShapeDefault'),
       trackColorByCategory: document.getElementById('trackColorByCategory'),
       trackColorDefault: document.getElementById('trackColorDefault'),
+      trackPointsList: document.getElementById('trackPointsList'),
+      trackPointsCount: document.getElementById('trackPointsCount'),
     };
 
     const state = {
@@ -32,9 +34,20 @@
       rawProperties: [],   // un-impact-annotated
       properties: [],      // with inCone/distMiles/impacted
       bufferMiles: parseInt(els.bufferSlider.value, 10),
+      // id -> forced impacted value; overrides the algorithm's verdict.
+      manualOverride: new Map(),
     };
 
     const ctrl = HurricaneMap.init('map');
+    ctrl.setOnTrackStyleChange(renderTrackPointList);
+    ctrl.setOnPropertyToggle((id, value) => {
+      const p = state.properties.find(pp => pp.id === id);
+      // If the new value matches what the algorithm said, drop the override
+      // rather than persisting a redundant entry.
+      if (p && value === p.algoImpacted) state.manualOverride.delete(id);
+      else state.manualOverride.set(id, value);
+      recomputeAndRender();
+    });
 
     // --- Event wiring ---
     els.kmzInput.addEventListener('change', e => {
@@ -121,6 +134,7 @@
         renderStormMeta();
         renderCategoryLegend();
         renderWWLegend();
+        renderTrackPointList();
         recomputeAndRender();
         ctrl.fit();
         els.exportBtn.disabled = false;
@@ -169,6 +183,11 @@
       state.properties = ImpactEngine.computeImpact(
         state.rawProperties, state.storm, state.bufferMiles
       );
+      // Preserve the algorithm's verdict and apply any manual overrides on top.
+      state.properties.forEach(p => {
+        p.algoImpacted = p.impacted;
+        if (state.manualOverride.has(p.id)) p.impacted = state.manualOverride.get(p.id);
+      });
       ctrl.setProperties(state.properties);
       renderImpactedList();
     }
@@ -255,6 +274,53 @@
         li.appendChild(document.createTextNode(' ' + (labels[cat] || cat)));
         els.categoryLegend.appendChild(li);
       });
+    }
+
+    function renderTrackPointList() {
+      if (!els.trackPointsList) return;
+      const points = ctrl.getTrackPointsWithStyle();
+      if (els.trackPointsCount) {
+        els.trackPointsCount.textContent = String(points.length);
+      }
+      els.trackPointsList.innerHTML = '';
+      if (points.length === 0) return;
+
+      const frag = document.createDocumentFragment();
+      points.forEach(({ feature, style }) => {
+        const li = document.createElement('li');
+        li.className = 'track-point-row';
+        if (style.label) li.classList.add('has-label');
+        if (style.description) li.classList.add('has-description');
+        li.title = 'Click to fly to and edit this track point';
+        li.addEventListener('click', () => ctrl.openTrackPoint(style.order));
+
+        const head = document.createElement('div');
+        head.className = 'track-point-head';
+        const time = document.createElement('span');
+        time.className = 'track-point-time';
+        time.textContent = feature.properties.name || ('Point ' + style.order);
+        head.appendChild(time);
+        const cat = document.createElement('span');
+        cat.className = 'track-point-cat';
+        cat.textContent = feature.properties.categoryLabel || '';
+        head.appendChild(cat);
+        li.appendChild(head);
+
+        if (style.label) {
+          const lbl = document.createElement('div');
+          lbl.className = 'track-point-label';
+          lbl.textContent = style.label;
+          li.appendChild(lbl);
+        }
+        if (style.description) {
+          const desc = document.createElement('div');
+          desc.className = 'track-point-desc';
+          desc.textContent = style.description;
+          li.appendChild(desc);
+        }
+        frag.appendChild(li);
+      });
+      els.trackPointsList.appendChild(frag);
     }
 
     function renderWWLegend() {

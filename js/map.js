@@ -165,8 +165,17 @@
     // Callout drag positions, keyed by stable cluster id (sorted property ids).
     // Survives buffer-slider re-renders so manual placement isn't lost.
     const calloutPositions = {};
+    // Custom callout text, keyed by the same cluster id. When set, replaces
+    // the default property-name lines for that cluster.
+    const calloutTextOverrides = {};
     // Live callout descriptors, for the PNG exporter
     let calloutData = [];
+
+    // Callbacks back to app.js; replaced via setOnTrackStyleChange / setOnPropertyToggle
+    const callbacks = {
+      onTrackStyleChange: () => {},
+      onPropertyToggle: () => {},
+    };
 
     // ---- Storm layers ----------------------------------------------------
 
@@ -206,7 +215,8 @@
         color = trackDefaults.colorByCategory ? categoryColor(cat) : trackDefaults.color;
       }
       const label = override.label != null ? override.label : '';
-      return { shape, color, label, order, cat };
+      const description = override.description != null ? override.description : '';
+      return { shape, color, label, description, order, cat };
     }
 
     function makeTrackIcon(style) {
@@ -280,18 +290,19 @@
       sub.textContent = feature.properties.categoryLabel || '';
       wrap.appendChild(sub);
 
+      function mutate(patch) {
+        trackPointStyles[order] = Object.assign({}, trackPointStyles[order], patch);
+        applyTrackStyle(feature);
+        callbacks.onTrackStyleChange();
+      }
+
       // Label
       wrap.appendChild(fieldRow('Label', (() => {
         const inp = document.createElement('input');
         inp.type = 'text';
         inp.placeholder = 'e.g. Current Location';
         inp.value = current.label || '';
-        inp.addEventListener('input', () => {
-          trackPointStyles[order] = Object.assign({}, trackPointStyles[order], {
-            label: inp.value,
-          });
-          applyTrackStyle(feature);
-        });
+        inp.addEventListener('input', () => mutate({ label: inp.value }));
         return inp;
       })()));
 
@@ -301,12 +312,7 @@
         sel.appendChild(opt('', 'Use default (' + TRACK_SHAPE_LABEL[trackDefaults.shape] + ')'));
         TRACK_SHAPES.forEach(s => sel.appendChild(opt(s, TRACK_SHAPE_LABEL[s])));
         sel.value = current.shape || '';
-        sel.addEventListener('change', () => {
-          trackPointStyles[order] = Object.assign({}, trackPointStyles[order], {
-            shape: sel.value || undefined,
-          });
-          applyTrackStyle(feature);
-        });
+        sel.addEventListener('change', () => mutate({ shape: sel.value || undefined }));
         return sel;
       })()));
 
@@ -315,13 +321,18 @@
         const inp = document.createElement('input');
         inp.type = 'color';
         inp.value = current.color || style.color || '#1f4e79';
-        inp.addEventListener('input', () => {
-          trackPointStyles[order] = Object.assign({}, trackPointStyles[order], {
-            color: inp.value,
-          });
-          applyTrackStyle(feature);
-        });
+        inp.addEventListener('input', () => mutate({ color: inp.value }));
         return inp;
+      })()));
+
+      // Description (not drawn on the map; shown in the side-panel track list)
+      wrap.appendChild(fieldBlock('Description', (() => {
+        const ta = document.createElement('textarea');
+        ta.rows = 3;
+        ta.placeholder = 'Optional context — not shown on the map';
+        ta.value = current.description || '';
+        ta.addEventListener('input', () => mutate({ description: ta.value }));
+        return ta;
       })()));
 
       const reset = document.createElement('button');
@@ -331,6 +342,7 @@
       reset.addEventListener('click', () => {
         delete trackPointStyles[order];
         applyTrackStyle(feature);
+        callbacks.onTrackStyleChange();
         map.closePopup();
       });
       wrap.appendChild(reset);
@@ -346,6 +358,17 @@
       row.appendChild(span);
       row.appendChild(control);
       return row;
+    }
+
+    // Stacked variant for tall controls (textarea) — label above, control below
+    function fieldBlock(labelText, control) {
+      const block = document.createElement('label');
+      block.className = 'track-editor-block';
+      const span = document.createElement('span');
+      span.textContent = labelText;
+      block.appendChild(span);
+      block.appendChild(control);
+      return block;
     }
 
     function opt(value, text) {
@@ -381,17 +404,60 @@
               fillColor: '#6c757d', fillOpacity: 0.65,
             });
         m.bindTooltip(
-          `<strong>${escapeHtml(p.name)}</strong><br>` +
-          `${escapeHtml(p.address || '')}` +
+          `<strong>${escapeHtml(p.name)}</strong>` +
+          (p.address ? `<br>${escapeHtml(p.address)}` : '') +
           (p.distMiles != null ? `<br>${p.distMiles.toFixed(1)} mi from track` : '') +
           (p.inCone ? '<br><em>In cone</em>' : ''),
           { direction: 'top' }
         );
+        m.bindPopup(() => buildPropertyEditor(p));
         m.propertyData = p;
         m.addTo(layers.properties);
       });
 
       renderCallouts();
+    }
+
+    function buildPropertyEditor(p) {
+      const wrap = document.createElement('div');
+      wrap.className = 'property-editor';
+
+      const title = document.createElement('div');
+      title.className = 'property-editor-title';
+      title.textContent = p.name;
+      wrap.appendChild(title);
+
+      if (p.address) {
+        const addr = document.createElement('div');
+        addr.className = 'property-editor-sub';
+        addr.textContent = p.address;
+        wrap.appendChild(addr);
+      }
+
+      const stats = document.createElement('div');
+      stats.className = 'property-editor-stats';
+      const bits = [];
+      if (p.distMiles != null) bits.push(p.distMiles.toFixed(1) + ' mi from track');
+      if (p.inCone) bits.push('in cone');
+      bits.push('algorithm: ' + (p.algoImpacted ? 'impacted' : 'not impacted'));
+      stats.textContent = bits.join(' · ');
+      wrap.appendChild(stats);
+
+      const toggleRow = document.createElement('label');
+      toggleRow.className = 'property-editor-toggle';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!p.impacted;
+      cb.addEventListener('change', () => {
+        callbacks.onPropertyToggle(p.id, cb.checked);
+      });
+      toggleRow.appendChild(cb);
+      const span = document.createElement('span');
+      span.textContent = 'Mark as impacted (red dot + callout)';
+      toggleRow.appendChild(span);
+      wrap.appendChild(toggleRow);
+
+      return wrap;
     }
 
     // Cluster impacted properties geographically (once), then place a
@@ -409,7 +475,10 @@
 
       clusters.forEach(cluster => {
         const id = cluster.map(p => p.id).slice().sort().join('|');
-        const lines = cluster.map(p => p.name);
+        const defaultLines = cluster.map(p => p.name);
+        const lines = (calloutTextOverrides[id] && calloutTextOverrides[id].length)
+          ? calloutTextOverrides[id].slice()
+          : defaultLines;
         const target = clusterCenter(cluster);
         const box = measureCalloutBox(lines);
 
@@ -432,18 +501,8 @@
         const boxLL = [position.lat, position.lng];
 
         const leader = L.polyline([boxLL, targetLL], LEADER_STYLE).addTo(layers.callouts);
-
-        const html = '<div class="property-callout">' +
-          lines.map(n => `<span class="callout-line">${escapeHtml(n)}</span>`).join('') +
-          '</div>';
-        const icon = L.divIcon({
-          className: 'callout-wrapper',
-          html,
-          iconSize: [box.width, box.height],
-          iconAnchor: [box.width / 2, box.height / 2],
-        });
         const marker = L.marker(boxLL, {
-          icon,
+          icon: makeCalloutIcon(lines),
           draggable: true,
           autoPan: false,
           zIndexOffset: 1000,
@@ -458,7 +517,68 @@
           descriptor.position = { lat: ll.lat, lng: ll.lng };
           calloutPositions[id] = descriptor.position;
         });
+
+        marker.bindPopup(() => buildCalloutEditor(id, defaultLines, descriptor, marker));
       });
+    }
+
+    function makeCalloutIcon(lines) {
+      const box = measureCalloutBox(lines);
+      const html = '<div class="property-callout">' +
+        lines.map(n => `<span class="callout-line">${escapeHtml(n)}</span>`).join('') +
+        '</div>';
+      return L.divIcon({
+        className: 'callout-wrapper',
+        html,
+        iconSize: [box.width, box.height],
+        iconAnchor: [box.width / 2, box.height / 2],
+      });
+    }
+
+    function buildCalloutEditor(id, defaultLines, descriptor, marker) {
+      const wrap = document.createElement('div');
+      wrap.className = 'callout-editor';
+
+      const title = document.createElement('div');
+      title.className = 'callout-editor-title';
+      title.textContent = 'Callout label';
+      wrap.appendChild(title);
+
+      const hint = document.createElement('div');
+      hint.className = 'callout-editor-sub';
+      hint.textContent = 'One line per row. Click Reset to restore the property names.';
+      wrap.appendChild(hint);
+
+      const ta = document.createElement('textarea');
+      ta.className = 'callout-editor-text';
+      ta.rows = Math.max(3, descriptor.lines.length + 1);
+      ta.value = descriptor.lines.join('\n');
+      ta.addEventListener('input', () => {
+        const newLines = ta.value.split('\n').map(s => s.trim()).filter(Boolean);
+        if (newLines.length === 0) {
+          delete calloutTextOverrides[id];
+          descriptor.lines = defaultLines.slice();
+        } else {
+          calloutTextOverrides[id] = newLines.slice();
+          descriptor.lines = newLines;
+        }
+        marker.setIcon(makeCalloutIcon(descriptor.lines));
+      });
+      wrap.appendChild(ta);
+
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'callout-editor-reset';
+      reset.textContent = 'Reset to property names';
+      reset.addEventListener('click', () => {
+        delete calloutTextOverrides[id];
+        descriptor.lines = defaultLines.slice();
+        ta.value = descriptor.lines.join('\n');
+        marker.setIcon(makeCalloutIcon(descriptor.lines));
+      });
+      wrap.appendChild(reset);
+
+      return wrap;
     }
 
     function clusterByMiles(items, thresholdMiles) {
@@ -550,9 +670,29 @@
       };
     }
 
+    function getTrackPointsWithStyle() {
+      if (!currentStorm || !currentStorm.trackPoints) return [];
+      return currentStorm.trackPoints.features.map(f => ({
+        feature: f,
+        style: resolveTrackStyle(f),
+      }));
+    }
+
+    function openTrackPoint(order) {
+      const marker = trackMarkers[order];
+      if (!marker) return;
+      const ll = marker.getLatLng();
+      flyTo(ll.lat, ll.lng);
+      // flyTo animates ~0.6s; open the popup once the view settles.
+      setTimeout(() => marker.openPopup(), 700);
+    }
+
     return {
       setStorm, setProperties, fit, flyTo, setLabelsVisible,
       setTrackDefaults, getTrackDefaults,
+      getTrackPointsWithStyle, openTrackPoint,
+      setOnTrackStyleChange: fn => { callbacks.onTrackStyleChange = fn || (() => {}); },
+      setOnPropertyToggle: fn => { callbacks.onPropertyToggle = fn || (() => {}); },
       getMap: () => map,
       getLayers: () => layers,
       getCurrent: () => ({ storm: currentStorm, properties: currentProperties }),

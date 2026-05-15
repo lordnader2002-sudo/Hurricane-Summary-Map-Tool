@@ -286,7 +286,7 @@ body {
 .leaflet-tooltip.track-label::before { display: none; }
 
 /* Track-point click editor (inside a Leaflet popup) */
-.track-editor { min-width: 190px; font-size: 13px; }
+.track-editor { min-width: 230px; font-size: 13px; }
 .track-editor-title { font-weight: 700; color: var(--text); }
 .track-editor-sub {
   color: var(--muted);
@@ -317,6 +317,25 @@ body {
   border: 1px solid var(--toolbar-border);
   border-radius: 3px;
 }
+.track-editor-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.track-editor-block span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.track-editor-block textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 4px 6px;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 12px;
+}
 .track-editor-reset {
   margin-top: 4px;
   width: 100%;
@@ -328,6 +347,116 @@ body {
   font-size: 12px;
 }
 .track-editor-reset:hover { background: #eef2f6; }
+
+/* Property click editor (inside a Leaflet popup) */
+.property-editor { min-width: 220px; font-size: 13px; }
+.property-editor-title { font-weight: 700; color: var(--text); }
+.property-editor-sub {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 2px 0;
+}
+.property-editor-stats {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.property-editor-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 6px 8px;
+  background: #f4f6f8;
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+.property-editor-toggle input { margin: 0; }
+
+/* Callout text editor (inside a Leaflet popup on the callout box itself) */
+.callout-editor { min-width: 240px; font-size: 13px; }
+.callout-editor-title { font-weight: 700; color: var(--text); }
+.callout-editor-sub {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 2px 0 6px;
+}
+.callout-editor-text {
+  width: 100%;
+  resize: vertical;
+  padding: 4px 6px;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 12px;
+}
+.callout-editor-reset {
+  margin-top: 6px;
+  width: 100%;
+  padding: 5px;
+  background: #fff;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.callout-editor-reset:hover { background: #eef2f6; }
+
+/* Side-panel track-point list */
+.track-points-list-wrap {
+  margin-top: 12px;
+  font-size: 13px;
+}
+.track-points-list-wrap summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--header-bg);
+  padding: 4px 0;
+  user-select: none;
+}
+.track-points-list {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+}
+.track-point-row {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--panel-border);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.track-point-row:last-child { border-bottom: 0; }
+.track-point-row:hover { background: #fdf3eb; }
+.track-point-row.has-label,
+.track-point-row.has-description { background: #f4f6f8; }
+.track-point-row.has-label:hover,
+.track-point-row.has-description:hover { background: #fdf3eb; }
+.track-point-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+}
+.track-point-time { font-weight: 600; color: var(--text); }
+.track-point-cat { color: var(--muted); }
+.track-point-label {
+  color: var(--impacted);
+  font-weight: 600;
+  margin-top: 2px;
+  font-size: 12px;
+}
+.track-point-desc {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 2px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
 
 /* Side-panel "Track Points" defaults */
 .track-defaults { font-size: 13px; }
