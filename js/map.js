@@ -27,6 +27,11 @@
   const CALLOUT_PAD_Y = 4;
   const CALLOUT_LINE_H = 14;
   const CALLOUT_BORDER = 2;
+  // Extra space added to the measured text dimensions so the text never
+  // touches the border, and to absorb small differences between canvas
+  // measureText and the browser's actual glyph rendering.
+  const CALLOUT_SAFETY_X = 14;
+  const CALLOUT_SAFETY_Y = 4;
 
   // Impacted properties within this many miles of each other share one callout.
   const CALLOUT_CLUSTER_MILES = 30;
@@ -55,8 +60,8 @@
       contentW = Math.max(contentW, measureCtx.measureText(t).width);
     });
     return {
-      width: Math.ceil(contentW) + CALLOUT_PAD_X * 2 + CALLOUT_BORDER * 2,
-      height: lines.length * CALLOUT_LINE_H + CALLOUT_PAD_Y * 2 + CALLOUT_BORDER * 2,
+      width: Math.ceil(contentW) + CALLOUT_PAD_X * 2 + CALLOUT_BORDER * 2 + CALLOUT_SAFETY_X,
+      height: lines.length * CALLOUT_LINE_H + CALLOUT_PAD_Y * 2 + CALLOUT_BORDER * 2 + CALLOUT_SAFETY_Y,
     };
   }
 
