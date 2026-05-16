@@ -91,6 +91,11 @@ properties + dragged-on KMZ).
    includes the storm name and advisory date, e.g.
    `AL132025_20251030_summary.png`.
 
+9. **Export Impacted CSV** — downloads a CSV containing only the impacted
+   properties, with columns `property_id, name, address, postal_code, lat,
+   lon, dist_miles, in_cone, manually_flagged`. Use it to email or hand off
+   the at-risk list.
+
 The right-hand side panel also lists the impacted properties, sortable by
 distance to track, name, or in-cone status. Click a row to fly the map to
 that property.
@@ -99,6 +104,36 @@ The map supports **fractional zoom** — the +/- buttons step half a zoom
 level and the scroll wheel is finer still — so you can frame the full
 forecast track precisely before exporting, instead of being stuck between
 one zoom level that's too tight and the next that's too loose.
+
+## Operational features
+
+- **Session auto-save & Restore.** Every customisation (track-point
+  labels/descriptions/icons/colors, callout positions and text, manual
+  flags, default styles, slider and label-toggle values) is written to
+  `localStorage` as you work. Refresh the page and a yellow banner offers
+  **Restore last session** or **Start fresh**. The toolbar **Reset** button
+  (red) clears the saved session and reloads — handy when starting a new
+  storm from scratch.
+- **Share view.** Click **Share view** in the toolbar to copy a URL that
+  encodes all of your customisations (compressed in the URL hash). The
+  recipient opens the URL, uploads the same NHC files + properties CSV
+  (filenames are listed in the status bar), and the tool replays your
+  configuration on top. The URL stays well under browser size limits even
+  for heavily customised views.
+- **Timeline scrubber.** When a storm with timestamped track points is
+  loaded, a horizontal time slider appears between the toolbar and the
+  map. Dragging it animates a yellow haloed scrub marker along the
+  forecast track and lists the properties within the buffer of that
+  position in a side-panel section — useful for "where will the storm be
+  in 24 hours, and what's at risk then?" The scrubber is additive; it
+  doesn't change the main Impacted Properties list.
+- **Advisory comparison.** Click **Compare advisory…** to load a second
+  advisory's KMZ/zip files. The older cone renders as a dashed lighter
+  polygon, the older track as a dashed black line, and a side-panel
+  **Comparison** section diff's the impacted sets — newly impacted,
+  dropped, unchanged — plus a max/avg track-shift number in miles. The
+  same buffer slider and manual flags apply to both advisories so the diff
+  is apples-to-apples.
 
 ## What gets highlighted
 
@@ -118,9 +153,12 @@ The cone test uses `@turf/boolean-point-in-polygon`; the buffer test uses
 - [shpjs](https://github.com/calvinmetcalf/shapefile-js) for parsing shapefile bundles
 - [PapaParse](https://www.papaparse.com/) for CSV
 - [Turf.js](https://turfjs.org/) for geospatial math
+- [LZ-String](https://github.com/pieroxy/lz-string) for compact share-URL encoding
 
 PNG export composites the already-rendered map tiles, vector canvas, and
 marker icons straight from the DOM — no extra library, and it can't hang.
+Session state and the optional share URL stay client-side; nothing leaves
+the browser.
 
 All vendor libraries are self-hosted in the `vendor/` folder and referenced by
 `index.html` with relative paths — no CDN, so the tool works on locked-down
@@ -138,9 +176,13 @@ js/shapefile.js   - NHC shapefile .zip parsing (via shpjs)
 js/csv.js         - CSV parsing + Nominatim fallback geocoding
 js/impact.js      - Cone-containment + buffer-distance impact logic
 js/map.js         - Leaflet map setup, track-point styling, callouts, watch/warning rendering
-js/export.js      - PNG export (composites the rendered map straight from the DOM)
+js/export.js      - PNG + CSV export helpers
+js/session.js     - Snapshot/restore to localStorage (debounced save)
+js/share.js       - Encode/decode the share URL hash (via LZ-String)
+js/timeline.js    - Interpolated storm position + properties-near helpers
+js/compare.js     - Impacted-set diff and track-shift between two advisories
 js/app.js         - Wires the UI controls to the modules above
-vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, shpjs
+vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, shpjs, lz-string
 scripts/          - Headless Node smoke test
 ```
 
@@ -190,10 +232,12 @@ shapefile tests run on synthesized fixtures regardless.
 
 ## Known limitations
 
-- PNG export only — PDF / CSV-of-impacted exports are not yet implemented.
+- PDF export not yet implemented (PNG + impacted-CSV are available).
 - Geocoding is rate-limited to 1 req/sec (Nominatim policy). If your CSV
   has many rows missing lat/lon, expect a wait. Pre-geocoding is strongly
   recommended.
-- No persistence — uploaded files, track-point styling, and callout
-  placements are not retained between page reloads.
-- One storm at a time.
+- Session save is per-browser. Open the tool in a different browser or
+  private window and you start fresh — use **Share view** to move a
+  configured session between users/browsers.
+- Advisory comparison is transient — it's not persisted to the saved
+  session or the share URL. Re-load the comparison files after a refresh.

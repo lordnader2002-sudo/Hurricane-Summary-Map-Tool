@@ -1,4 +1,4 @@
-/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport */
+/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare */
 /*
  * App bootstrap — wires the UI controls (file inputs, slider, export button,
  * impacted-property side list) to the parsing/impact/render modules.
@@ -14,6 +14,7 @@
       bufferValue: document.getElementById('bufferValue'),
       labelsToggle: document.getElementById('labelsToggle'),
       exportBtn: document.getElementById('exportBtn'),
+      exportCsvBtn: document.getElementById('exportCsvBtn'),
       status: document.getElementById('status'),
       stormMeta: document.getElementById('stormMeta'),
       categoryLegend: document.getElementById('categoryLegend'),
@@ -26,6 +27,30 @@
       trackColorDefault: document.getElementById('trackColorDefault'),
       trackPointsList: document.getElementById('trackPointsList'),
       trackPointsCount: document.getElementById('trackPointsCount'),
+      resetBtn: document.getElementById('resetBtn'),
+      shareBtn: document.getElementById('shareBtn'),
+      restoreBanner: document.getElementById('restoreBanner'),
+      restoreBannerText: document.getElementById('restoreBannerText'),
+      restoreBtn: document.getElementById('restoreBtn'),
+      dismissRestoreBtn: document.getElementById('dismissRestoreBtn'),
+      timeline: document.getElementById('timeline'),
+      timelineSlider: document.getElementById('timelineSlider'),
+      timelineTime: document.getElementById('timelineTime'),
+      timelineClearBtn: document.getElementById('timelineClearBtn'),
+      scrubPanel: document.getElementById('scrubPanel'),
+      scrubMeta: document.getElementById('scrubMeta'),
+      scrubList: document.getElementById('scrubList'),
+      scrubCount: document.getElementById('scrubCount'),
+      compareInput: document.getElementById('compareInput'),
+      comparePanel: document.getElementById('comparePanel'),
+      compareMeta: document.getElementById('compareMeta'),
+      compareClearBtn: document.getElementById('compareClearBtn'),
+      newlyImpactedList: document.getElementById('newlyImpactedList'),
+      newlyImpactedCount: document.getElementById('newlyImpactedCount'),
+      droppedList: document.getElementById('droppedList'),
+      droppedCount: document.getElementById('droppedCount'),
+      unchangedList: document.getElementById('unchangedList'),
+      unchangedCount: document.getElementById('unchangedCount'),
     };
 
     const state = {
@@ -33,13 +58,23 @@
       parts: [],           // accumulated parsed parts (cone/track/ww/combined)
       rawProperties: [],   // un-impact-annotated
       properties: [],      // with inCone/distMiles/impacted
+      propertiesSource: '',
       bufferMiles: parseInt(els.bufferSlider.value, 10),
+      labelsVisible: true,
       // id -> forced impacted value; overrides the algorithm's verdict.
       manualOverride: new Map(),
+      // Suppress session.save() while we're restoring a snapshot
+      suppressSave: false,
+      // Pending share payload from #s=… on the URL, applied after upload
+      pendingShare: null,
+      // Advisory comparison (transient — not persisted to localStorage or share)
+      compareParts: [],
+      compareStorm: null,
+      compareImpacted: [],
     };
 
     const ctrl = HurricaneMap.init('map');
-    ctrl.setOnTrackStyleChange(renderTrackPointList);
+    ctrl.setOnTrackStyleChange(() => { renderTrackPointList(); scheduleSave(); });
     ctrl.setOnPropertyToggle((id, value) => {
       const p = state.properties.find(pp => pp.id === id);
       // If the new value matches what the algorithm said, drop the override
@@ -47,7 +82,17 @@
       if (p && value === p.algoImpacted) state.manualOverride.delete(id);
       else state.manualOverride.set(id, value);
       recomputeAndRender();
+      scheduleSave();
     });
+    ctrl.setOnCalloutChange(scheduleSave);
+
+    function scheduleSave() {
+      if (state.suppressSave) return;
+      // Only persist after the user has uploaded at least one of storm/props,
+      // so an opened-then-closed empty tab doesn't overwrite a real session.
+      if (state.parts.length === 0 && state.rawProperties.length === 0) return;
+      HurricaneSession.save(HurricaneSession.captureSnapshot(state, ctrl));
+    }
 
     // --- Event wiring ---
     els.kmzInput.addEventListener('change', e => {
@@ -56,14 +101,82 @@
     });
     els.csvInput.addEventListener('change', e => handleCsvUpload(e.target.files[0]));
 
+    els.compareInput.addEventListener('change', e => {
+      handleCompareUpload(e.target.files);
+      e.target.value = '';
+    });
+    els.compareClearBtn.addEventListener('click', clearCompare);
+
     els.bufferSlider.addEventListener('input', e => {
       state.bufferMiles = parseInt(e.target.value, 10);
       els.bufferValue.textContent = `${state.bufferMiles} mi`;
       recomputeAndRender();
+      scheduleSave();
     });
 
     els.labelsToggle.addEventListener('change', e => {
+      state.labelsVisible = e.target.checked;
       ctrl.setLabelsVisible(e.target.checked);
+      scheduleSave();
+    });
+
+    els.timelineSlider.addEventListener('input', () => updateScrub(true));
+    els.timelineClearBtn.addEventListener('click', () => {
+      ctrl.setScrubPosition(null);
+      els.scrubPanel.hidden = true;
+      els.timelineTime.textContent = '';
+    });
+
+    els.shareBtn.addEventListener('click', async () => {
+      if (state.parts.length === 0 && state.rawProperties.length === 0) {
+        setStatus('Nothing to share yet — upload a storm or CSV first', 'error');
+        return;
+      }
+      try {
+        const url = HurricaneShare.encode(state, ctrl);
+        await navigator.clipboard.writeText(url);
+        const fileBits = [];
+        if (state.parts.length) fileBits.push((state.parts || []).map(p => p.fileName).join(', '));
+        if (state.propertiesSource) fileBits.push(state.propertiesSource);
+        setStatus(
+          `Copied share URL to clipboard. Recipient must upload: ${fileBits.join(' + ') || '(no files)'}`,
+          'success'
+        );
+      } catch (err) {
+        console.error(err);
+        // Clipboard API can fail (insecure context, permissions); fall back to
+        // setting a prompt-like input so the user can copy manually.
+        try {
+          const url = HurricaneShare.encode(state, ctrl);
+          window.prompt('Copy this URL:', url);
+          setStatus('Share URL ready (copy from the prompt)', 'success');
+        } catch (e2) {
+          setStatus('Share failed: ' + (err && err.message ? err.message : err), 'error');
+        }
+      }
+    });
+
+    els.resetBtn.addEventListener('click', () => {
+      const ok = window.confirm(
+        'This will clear your saved session (storm, properties, customisations) '
+        + 'and reload the page. Continue?'
+      );
+      if (!ok) return;
+      HurricaneSession.clear();
+      location.reload();
+    });
+
+    els.dismissRestoreBtn.addEventListener('click', () => {
+      els.restoreBanner.hidden = true;
+      // User declined restore — discard the saved snapshot so it doesn't keep
+      // re-prompting on future reloads.
+      HurricaneSession.clear();
+    });
+    els.restoreBtn.addEventListener('click', async () => {
+      els.restoreBanner.hidden = true;
+      const snap = HurricaneSession.load();
+      if (!snap) return;
+      await restoreFromSnapshot(snap);
     });
 
     els.exportBtn.addEventListener('click', async () => {
@@ -78,6 +191,26 @@
         setStatus('Export failed: ' + (err && err.message ? err.message : err), 'error');
       } finally {
         els.exportBtn.disabled = !state.storm;
+      }
+    });
+
+    els.exportCsvBtn.addEventListener('click', () => {
+      try {
+        const impacted = state.properties.filter(p => p.impacted);
+        if (impacted.length === 0) {
+          setStatus('No impacted properties to export', 'error');
+          return;
+        }
+        const csv = buildImpactedCsv(impacted);
+        const filename = buildExportFilename(state.storm, 'impacted', 'csv');
+        HurricaneExport.triggerDownload(
+          new Blob([csv], { type: 'text/csv;charset=utf-8;' }),
+          filename
+        );
+        setStatus(`Downloaded ${filename} (${impacted.length} rows)`, 'success');
+      } catch (err) {
+        console.error(err);
+        setStatus('CSV export failed: ' + (err && err.message ? err.message : err), 'error');
       }
     });
 
@@ -113,6 +246,7 @@
         color: els.trackColorDefault.value,
         colorByCategory: els.trackColorByCategory.checked,
       });
+      scheduleSave();
     }
 
     // --- Handlers ---
@@ -135,9 +269,14 @@
         renderCategoryLegend();
         renderWWLegend();
         renderTrackPointList();
+        refreshTimelineRange();
         recomputeAndRender();
         ctrl.fit();
         els.exportBtn.disabled = false;
+        els.exportCsvBtn.disabled = false;
+        els.shareBtn.disabled = false;
+        await maybeApplyPendingShare();
+        scheduleSave();
 
         const bits = [
           `${storm.trackPoints.features.length} track points`,
@@ -163,8 +302,12 @@
           onProgress: msg => setStatus(msg),
         });
         state.rawProperties = properties;
+        state.propertiesSource = file.name;
         recomputeAndRender();
         ctrl.fit();
+        els.shareBtn.disabled = false;
+        await maybeApplyPendingShare();
+        scheduleSave();
         const skipMsg = skipped > 0 ? ` (${skipped} row(s) skipped — no usable lat/lon)` : '';
         setStatus(`Loaded ${properties.length} properties${skipMsg}`, 'success');
       } catch (err) {
@@ -178,6 +321,8 @@
         state.properties = [];
         ctrl.setProperties([]);
         renderImpactedList();
+        recomputeCompareImpact();
+        renderComparePanel();
         return;
       }
       state.properties = ImpactEngine.computeImpact(
@@ -190,6 +335,9 @@
       });
       ctrl.setProperties(state.properties);
       renderImpactedList();
+      // Keep the comparison view in sync with the same buffer/overrides
+      recomputeCompareImpact();
+      renderComparePanel();
     }
 
     function renderImpactedList() {
@@ -345,6 +493,353 @@
     function setStatus(msg, kind) {
       els.status.textContent = msg || '';
       els.status.className = 'status' + (kind ? ' ' + kind : '');
+    }
+
+    async function restoreFromSnapshot(snap) {
+      state.suppressSave = true;
+      try {
+        setStatus('Restoring saved session…');
+        await HurricaneSession.applySnapshot(snap, state, ctrl);
+
+        // Sync the UI controls that aren't auto-driven by ctrl
+        els.bufferSlider.value = String(state.bufferMiles);
+        els.bufferValue.textContent = `${state.bufferMiles} mi`;
+        els.labelsToggle.checked = state.labelsVisible !== false;
+        const defaults = ctrl.getTrackDefaults();
+        els.trackShapeDefault.value = defaults.shape;
+        els.trackColorByCategory.checked = defaults.colorByCategory;
+        els.trackColorDefault.value = defaults.color;
+        els.trackColorDefault.disabled = defaults.colorByCategory;
+
+        if (state.storm) {
+          renderStormMeta();
+          renderCategoryLegend();
+          renderWWLegend();
+          renderTrackPointList();
+          refreshTimelineRange();
+          els.exportBtn.disabled = false;
+          els.exportCsvBtn.disabled = false;
+          els.shareBtn.disabled = false;
+        }
+        recomputeAndRender();
+        if (state.storm || state.rawProperties.length) ctrl.fit();
+
+        const bits = [];
+        if (state.storm) bits.push(`storm: ${state.storm.stormName}`);
+        if (state.rawProperties.length) bits.push(`${state.rawProperties.length} properties`);
+        setStatus(`Restored saved session (${bits.join(', ')})`, 'success');
+      } finally {
+        state.suppressSave = false;
+      }
+    }
+
+    async function maybeApplyPendingShare() {
+      if (!state.pendingShare) return;
+      state.suppressSave = true;
+      try {
+        const done = await HurricaneShare.applyPending(state.pendingShare, state, ctrl);
+        if (!done) return;   // still waiting on the other file
+        // Sync UI controls and surface any filename mismatch as a warning
+        els.bufferSlider.value = String(state.bufferMiles);
+        els.bufferValue.textContent = `${state.bufferMiles} mi`;
+        els.labelsToggle.checked = state.labelsVisible !== false;
+        const defaults = ctrl.getTrackDefaults();
+        els.trackShapeDefault.value = defaults.shape;
+        els.trackColorByCategory.checked = defaults.colorByCategory;
+        els.trackColorDefault.value = defaults.color;
+        els.trackColorDefault.disabled = defaults.colorByCategory;
+        renderTrackPointList();
+        recomputeAndRender();
+
+        const mm = HurricaneShare.filenameMismatchSummary(state.pendingShare, state);
+        const warnings = [];
+        if (mm.missing.length) warnings.push('missing: ' + mm.missing.join(', '));
+        if (!mm.csvOk && mm.csvExpected) {
+          warnings.push(`expected CSV "${mm.csvExpected}", got "${mm.csvGot || '(none)'}"`);
+        }
+        if (warnings.length) {
+          setStatus('Shared view applied with warnings — ' + warnings.join('; '), 'error');
+        } else {
+          setStatus('Shared view applied', 'success');
+        }
+        state.pendingShare = null;
+        // Clear the share hash so a follow-up refresh doesn't re-prompt
+        if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+      } finally {
+        state.suppressSave = false;
+      }
+    }
+
+    // Pending share decode on page load
+    (function maybeDecodeShare() {
+      const payload = HurricaneShare.decodePendingShare();
+      if (!payload) return;
+      state.pendingShare = payload;
+      const expected = [];
+      if (payload.fileNames && payload.fileNames.length) {
+        expected.push(payload.fileNames.join(', '));
+      }
+      if (payload.csvFileName) expected.push(payload.csvFileName);
+      setStatus(
+        'Shared view detected. Upload to apply: ' + (expected.join(' + ') || '(no files needed)'),
+        'success'
+      );
+    })();
+
+    // Restore prompt on page load. A pending share URL takes precedence —
+    // we don't want the user restoring an old session that would clobber
+    // what the share link wants to apply on top of their fresh uploads.
+    (function maybePromptRestore() {
+      if (state.pendingShare) return;
+      const snap = HurricaneSession.load();
+      if (!snap) return;
+      const when = snap.savedAt ? new Date(snap.savedAt) : null;
+      const ago = when ? timeAgo(when) : 'recently';
+      const bits = [];
+      if (snap.storm && snap.storm.fileNames && snap.storm.fileNames.length) {
+        bits.push(snap.storm.fileNames.join(', '));
+      }
+      if (snap.properties && snap.properties.rows) {
+        bits.push(`${snap.properties.rows.length} properties`);
+      }
+      els.restoreBannerText.textContent =
+        `Saved session from ${ago}${bits.length ? ' (' + bits.join(' · ') + ')' : ''}.`;
+      els.restoreBanner.hidden = false;
+    })();
+
+    function timeAgo(date) {
+      const sec = Math.max(1, Math.round((Date.now() - date.getTime()) / 1000));
+      if (sec < 60) return sec + 's ago';
+      const min = Math.round(sec / 60);
+      if (min < 60) return min + 'm ago';
+      const hr = Math.round(min / 60);
+      if (hr < 24) return hr + 'h ago';
+      const day = Math.round(hr / 24);
+      return day + 'd ago';
+    }
+
+    function csvField(v) {
+      if (v == null) return '';
+      const s = String(v);
+      return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+
+    function buildImpactedCsv(impacted) {
+      const headers = [
+        'property_id', 'name', 'address', 'postal_code',
+        'lat', 'lon', 'dist_miles', 'in_cone', 'manually_flagged',
+      ];
+      const lines = [headers.join(',')];
+      impacted.forEach(p => {
+        lines.push([
+          p.id,
+          p.name,
+          p.address || '',
+          p.postalCode || '',
+          p.lat,
+          p.lon,
+          p.distMiles != null ? p.distMiles.toFixed(2) : '',
+          p.inCone ? 'true' : 'false',
+          state.manualOverride.has(p.id) ? 'true' : 'false',
+        ].map(csvField).join(','));
+      });
+      return lines.join('\n') + '\n';
+    }
+
+    // --- Advisory comparison ---
+
+    async function handleCompareUpload(fileList) {
+      const files = Array.from(fileList || []);
+      if (files.length === 0) return;
+      if (!state.storm) {
+        setStatus('Load a primary storm first, then upload a comparison advisory', 'error');
+        return;
+      }
+      setStatus(`Loading comparison (${files.length} file(s))…`);
+      try {
+        const newParts = await HurricaneKMZ.parseToParts(files);
+        // Accumulate by kind, just like the primary upload
+        newParts.forEach(np => {
+          state.compareParts = state.compareParts.filter(p => p.kind !== np.kind);
+          state.compareParts.push(np);
+        });
+        state.compareStorm = HurricaneKMZ.mergeParts(state.compareParts);
+        ctrl.setCompareStorm(state.compareStorm);
+        recomputeCompareImpact();
+        renderComparePanel();
+        setStatus(
+          `Comparison: "${state.compareStorm.stormName}" loaded `
+          + `(${state.compareStorm.sources.join(' + ') || 'storm'})`,
+          'success'
+        );
+      } catch (err) {
+        console.error(err);
+        setStatus('Comparison load failed: ' + (err && err.message ? err.message : err), 'error');
+      }
+    }
+
+    function clearCompare() {
+      state.compareParts = [];
+      state.compareStorm = null;
+      state.compareImpacted = [];
+      ctrl.setCompareStorm(null);
+      els.comparePanel.hidden = true;
+    }
+
+    function recomputeCompareImpact() {
+      if (!state.compareStorm || state.rawProperties.length === 0) {
+        state.compareImpacted = [];
+        return;
+      }
+      const annotated = ImpactEngine.computeImpact(
+        state.rawProperties, state.compareStorm, state.bufferMiles
+      );
+      // Apply manual overrides to the comparison too — the user's manual flag
+      // is about the property, not the advisory.
+      annotated.forEach(p => {
+        if (state.manualOverride.has(p.id)) p.impacted = state.manualOverride.get(p.id);
+      });
+      state.compareImpacted = annotated;
+    }
+
+    function renderComparePanel() {
+      if (!state.compareStorm) {
+        els.comparePanel.hidden = true;
+        return;
+      }
+      const diff = HurricaneCompare.diffImpacts(state.properties, state.compareImpacted);
+      const shift = HurricaneCompare.trackShift(state.storm, state.compareStorm);
+
+      const metaBits = [];
+      metaBits.push('vs <strong>' + escapeHtml(state.compareStorm.stormName) + '</strong>'
+        + (state.compareStorm.advisoryDate ? ' (' + state.compareStorm.advisoryDate + ')' : ''));
+      if (shift) {
+        metaBits.push(
+          'Track shift: max ' + shift.maxMiles.toFixed(1) + ' mi · avg '
+          + shift.avgMiles.toFixed(1) + ' mi'
+        );
+      }
+      els.compareMeta.innerHTML = metaBits.join('<br>');
+
+      fillCompareList(els.newlyImpactedList, els.newlyImpactedCount, diff.newlyImpacted);
+      fillCompareList(els.droppedList, els.droppedCount, diff.dropped);
+      fillCompareList(els.unchangedList, els.unchangedCount, diff.unchanged);
+
+      els.comparePanel.hidden = false;
+    }
+
+    function fillCompareList(listEl, countEl, rows) {
+      countEl.textContent = String(rows.length);
+      listEl.innerHTML = '';
+      if (rows.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'empty';
+        li.textContent = '— none —';
+        listEl.appendChild(li);
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      rows.forEach(p => {
+        const li = document.createElement('li');
+        li.title = 'Click to zoom to property';
+        li.addEventListener('click', () => ctrl.flyTo(p.lat, p.lon));
+        const name = document.createElement('span');
+        name.className = 'name';
+        name.textContent = p.name;
+        li.appendChild(name);
+        const meta = document.createElement('span');
+        meta.className = 'meta';
+        const distTxt = p.distMiles != null ? p.distMiles.toFixed(1) + ' mi from track' : '';
+        meta.textContent = [p.address, distTxt].filter(Boolean).join(' · ');
+        li.appendChild(meta);
+        frag.appendChild(li);
+      });
+      listEl.appendChild(frag);
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // --- Timeline scrubber ---
+
+    function refreshTimelineRange() {
+      const range = state.storm
+        ? HurricaneTimeline.getTimeRange(state.storm.trackPoints)
+        : null;
+      if (!range) {
+        els.timeline.hidden = true;
+        els.scrubPanel.hidden = true;
+        ctrl.setScrubPosition(null);
+        return;
+      }
+      els.timeline.hidden = false;
+      els.timelineSlider.min = String(range.tMin);
+      els.timelineSlider.max = String(range.tMax);
+      els.timelineSlider.step = String(Math.max(60_000, Math.round((range.tMax - range.tMin) / 200)));
+      els.timelineSlider.value = String(range.tMin);
+      els.timelineTime.textContent = HurricaneTimeline.formatTime(range.tMin) + '  (drag →)';
+      ctrl.setScrubPosition(null);
+      els.scrubPanel.hidden = true;
+    }
+
+    function updateScrub(showPanel) {
+      if (!state.storm) return;
+      const t = parseInt(els.timelineSlider.value, 10);
+      const pos = HurricaneTimeline.interpolatePosition(state.storm.trackPoints, t);
+      if (!pos) return;
+      ctrl.setScrubPosition([pos.lat, pos.lon], {
+        bufferMiles: state.bufferMiles,
+      });
+      els.timelineTime.textContent = HurricaneTimeline.formatTime(t);
+
+      if (showPanel) {
+        const near = HurricaneTimeline.propertiesNear(
+          state.properties, pos, state.bufferMiles
+        );
+        els.scrubCount.textContent = String(near.length);
+        els.scrubMeta.textContent =
+          `Storm at ${pos.lat.toFixed(2)}, ${pos.lon.toFixed(2)}`
+          + (pos.label ? ' · ' + pos.label : '')
+          + ` · within ${state.bufferMiles} mi of ${near.length} property` + (near.length === 1 ? '' : 'ies');
+        els.scrubList.innerHTML = '';
+        if (near.length === 0) {
+          const li = document.createElement('li');
+          li.className = 'empty';
+          li.textContent = 'No properties within buffer at this time';
+          els.scrubList.appendChild(li);
+        } else {
+          const frag = document.createDocumentFragment();
+          near.forEach(p => {
+            const li = document.createElement('li');
+            li.title = 'Click to zoom to property';
+            li.addEventListener('click', () => ctrl.flyTo(p.lat, p.lon));
+            const name = document.createElement('span');
+            name.className = 'name';
+            name.textContent = p.name;
+            li.appendChild(name);
+            const meta = document.createElement('span');
+            meta.className = 'meta';
+            meta.textContent = [p.address, p.distMiles.toFixed(1) + ' mi'].filter(Boolean).join(' · ');
+            li.appendChild(meta);
+            frag.appendChild(li);
+          });
+          els.scrubList.appendChild(frag);
+        }
+        els.scrubPanel.hidden = false;
+      }
+    }
+
+    function buildExportFilename(storm, suffix, ext) {
+      const name = storm && storm.stormName
+        ? storm.stormName.replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
+        : 'hurricane';
+      const date = (storm && storm.advisoryDate)
+        ? storm.advisoryDate.replace(/-/g, '')
+        : new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      return `${name || 'hurricane'}_${date}_${suffix}.${ext}`;
     }
   });
 })();

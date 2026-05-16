@@ -25,6 +25,11 @@
       <input type="file" id="csvInput" accept=".csv,text/csv" hidden />
     </label>
 
+    <label class="btn" id="compareLabel" title="Load a second advisory to compare against the current one">
+      Compare advisory…
+      <input type="file" id="compareInput" accept=".kmz,.kml,.zip" multiple hidden />
+    </label>
+
     <div class="buffer-control">
       <label for="bufferSlider">Buffer:</label>
       <input type="range" id="bufferSlider" min="0" max="500" step="10" value="100" />
@@ -37,8 +42,24 @@
     </label>
 
     <button class="btn primary" id="exportBtn" disabled>Export PNG</button>
+    <button class="btn" id="exportCsvBtn" disabled>Export Impacted CSV</button>
+    <button class="btn" id="shareBtn" disabled title="Copy a URL that recreates this view">Share view</button>
+    <button class="btn danger" id="resetBtn" title="Clear saved session and reload">Reset</button>
 
     <div class="status" id="status"></div>
+  </div>
+
+  <div class="banner" id="restoreBanner" hidden>
+    <span class="banner-text" id="restoreBannerText">A saved session was found.</span>
+    <button class="btn primary small" id="restoreBtn">Restore</button>
+    <button class="btn small" id="dismissRestoreBtn">Start fresh</button>
+  </div>
+
+  <div class="timeline" id="timeline" hidden>
+    <label class="timeline-label" for="timelineSlider">Timeline:</label>
+    <input type="range" id="timelineSlider" min="0" max="100" step="1" value="0" />
+    <span class="timeline-time" id="timelineTime"></span>
+    <button class="btn small" id="timelineClearBtn" title="Clear scrub marker">×</button>
   </div>
 
   <main class="layout">
@@ -83,6 +104,30 @@
         </details>
       </section>
 
+      <section class="panel-section" id="comparePanel" hidden>
+        <h3>Comparison</h3>
+        <div class="compare-meta" id="compareMeta"></div>
+        <button class="btn small" id="compareClearBtn">Clear comparison</button>
+        <details open class="compare-block">
+          <summary>Newly impacted <span class="count" id="newlyImpactedCount">0</span></summary>
+          <ol class="impacted-list" id="newlyImpactedList"></ol>
+        </details>
+        <details class="compare-block">
+          <summary>Dropped <span class="count muted" id="droppedCount">0</span></summary>
+          <ol class="impacted-list" id="droppedList"></ol>
+        </details>
+        <details class="compare-block">
+          <summary>Unchanged <span class="count muted" id="unchangedCount">0</span></summary>
+          <ol class="impacted-list" id="unchangedList"></ol>
+        </details>
+      </section>
+
+      <section class="panel-section" id="scrubPanel" hidden>
+        <h3>At scrub time <span class="count" id="scrubCount">0</span></h3>
+        <div class="scrub-meta" id="scrubMeta"></div>
+        <ol class="impacted-list" id="scrubList"></ol>
+      </section>
+
       <section class="panel-section">
         <h3>Impacted Properties <span class="count" id="impactedCount">0</span></h3>
         <div class="sort-controls">
@@ -108,6 +153,7 @@
   <script src="vendor/papaparse.min.js"></script>
   <script src="vendor/turf.min.js"></script>
   <script src="vendor/shp.min.js"></script>
+  <script src="vendor/lz-string.min.js"></script>
 
   <!-- App modules -->
   <script src="js/kmz.js"></script>
@@ -116,6 +162,10 @@
   <script src="js/impact.js"></script>
   <script src="js/map.js"></script>
   <script src="js/export.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/share.js"></script>
+  <script src="js/timeline.js"></script>
+  <script src="js/compare.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
