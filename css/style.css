@@ -126,6 +126,28 @@ body {
   margin-bottom: 8px;
 }
 
+.compare-meta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.compare-block {
+  margin-top: 8px;
+  font-size: 13px;
+}
+.compare-block summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+  user-select: none;
+}
+.compare-block summary .count.muted {
+  background: var(--muted);
+}
+.compare-block .impacted-list { max-height: 180px; overflow-y: auto; }
+#compareClearBtn { margin-bottom: 6px; }
+
 .buffer-control {
   display: flex;
   align-items: center;

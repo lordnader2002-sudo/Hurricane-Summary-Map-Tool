@@ -1,4 +1,4 @@
-/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline */
+/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare */
 /*
  * App bootstrap — wires the UI controls (file inputs, slider, export button,
  * impacted-property side list) to the parsing/impact/render modules.
@@ -41,6 +41,16 @@
       scrubMeta: document.getElementById('scrubMeta'),
       scrubList: document.getElementById('scrubList'),
       scrubCount: document.getElementById('scrubCount'),
+      compareInput: document.getElementById('compareInput'),
+      comparePanel: document.getElementById('comparePanel'),
+      compareMeta: document.getElementById('compareMeta'),
+      compareClearBtn: document.getElementById('compareClearBtn'),
+      newlyImpactedList: document.getElementById('newlyImpactedList'),
+      newlyImpactedCount: document.getElementById('newlyImpactedCount'),
+      droppedList: document.getElementById('droppedList'),
+      droppedCount: document.getElementById('droppedCount'),
+      unchangedList: document.getElementById('unchangedList'),
+      unchangedCount: document.getElementById('unchangedCount'),
     };
 
     const state = {
@@ -57,6 +67,10 @@
       suppressSave: false,
       // Pending share payload from #s=… on the URL, applied after upload
       pendingShare: null,
+      // Advisory comparison (transient — not persisted to localStorage or share)
+      compareParts: [],
+      compareStorm: null,
+      compareImpacted: [],
     };
 
     const ctrl = HurricaneMap.init('map');
@@ -86,6 +100,12 @@
       e.target.value = '';   // allow re-selecting the same file later
     });
     els.csvInput.addEventListener('change', e => handleCsvUpload(e.target.files[0]));
+
+    els.compareInput.addEventListener('change', e => {
+      handleCompareUpload(e.target.files);
+      e.target.value = '';
+    });
+    els.compareClearBtn.addEventListener('click', clearCompare);
 
     els.bufferSlider.addEventListener('input', e => {
       state.bufferMiles = parseInt(e.target.value, 10);
@@ -301,6 +321,8 @@
         state.properties = [];
         ctrl.setProperties([]);
         renderImpactedList();
+        recomputeCompareImpact();
+        renderComparePanel();
         return;
       }
       state.properties = ImpactEngine.computeImpact(
@@ -313,6 +335,9 @@
       });
       ctrl.setProperties(state.properties);
       renderImpactedList();
+      // Keep the comparison view in sync with the same buffer/overrides
+      recomputeCompareImpact();
+      renderComparePanel();
     }
 
     function renderImpactedList() {
@@ -619,6 +644,123 @@
         ].map(csvField).join(','));
       });
       return lines.join('\n') + '\n';
+    }
+
+    // --- Advisory comparison ---
+
+    async function handleCompareUpload(fileList) {
+      const files = Array.from(fileList || []);
+      if (files.length === 0) return;
+      if (!state.storm) {
+        setStatus('Load a primary storm first, then upload a comparison advisory', 'error');
+        return;
+      }
+      setStatus(`Loading comparison (${files.length} file(s))…`);
+      try {
+        const newParts = await HurricaneKMZ.parseToParts(files);
+        // Accumulate by kind, just like the primary upload
+        newParts.forEach(np => {
+          state.compareParts = state.compareParts.filter(p => p.kind !== np.kind);
+          state.compareParts.push(np);
+        });
+        state.compareStorm = HurricaneKMZ.mergeParts(state.compareParts);
+        ctrl.setCompareStorm(state.compareStorm);
+        recomputeCompareImpact();
+        renderComparePanel();
+        setStatus(
+          `Comparison: "${state.compareStorm.stormName}" loaded `
+          + `(${state.compareStorm.sources.join(' + ') || 'storm'})`,
+          'success'
+        );
+      } catch (err) {
+        console.error(err);
+        setStatus('Comparison load failed: ' + (err && err.message ? err.message : err), 'error');
+      }
+    }
+
+    function clearCompare() {
+      state.compareParts = [];
+      state.compareStorm = null;
+      state.compareImpacted = [];
+      ctrl.setCompareStorm(null);
+      els.comparePanel.hidden = true;
+    }
+
+    function recomputeCompareImpact() {
+      if (!state.compareStorm || state.rawProperties.length === 0) {
+        state.compareImpacted = [];
+        return;
+      }
+      const annotated = ImpactEngine.computeImpact(
+        state.rawProperties, state.compareStorm, state.bufferMiles
+      );
+      // Apply manual overrides to the comparison too — the user's manual flag
+      // is about the property, not the advisory.
+      annotated.forEach(p => {
+        if (state.manualOverride.has(p.id)) p.impacted = state.manualOverride.get(p.id);
+      });
+      state.compareImpacted = annotated;
+    }
+
+    function renderComparePanel() {
+      if (!state.compareStorm) {
+        els.comparePanel.hidden = true;
+        return;
+      }
+      const diff = HurricaneCompare.diffImpacts(state.properties, state.compareImpacted);
+      const shift = HurricaneCompare.trackShift(state.storm, state.compareStorm);
+
+      const metaBits = [];
+      metaBits.push('vs <strong>' + escapeHtml(state.compareStorm.stormName) + '</strong>'
+        + (state.compareStorm.advisoryDate ? ' (' + state.compareStorm.advisoryDate + ')' : ''));
+      if (shift) {
+        metaBits.push(
+          'Track shift: max ' + shift.maxMiles.toFixed(1) + ' mi · avg '
+          + shift.avgMiles.toFixed(1) + ' mi'
+        );
+      }
+      els.compareMeta.innerHTML = metaBits.join('<br>');
+
+      fillCompareList(els.newlyImpactedList, els.newlyImpactedCount, diff.newlyImpacted);
+      fillCompareList(els.droppedList, els.droppedCount, diff.dropped);
+      fillCompareList(els.unchangedList, els.unchangedCount, diff.unchanged);
+
+      els.comparePanel.hidden = false;
+    }
+
+    function fillCompareList(listEl, countEl, rows) {
+      countEl.textContent = String(rows.length);
+      listEl.innerHTML = '';
+      if (rows.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'empty';
+        li.textContent = '— none —';
+        listEl.appendChild(li);
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      rows.forEach(p => {
+        const li = document.createElement('li');
+        li.title = 'Click to zoom to property';
+        li.addEventListener('click', () => ctrl.flyTo(p.lat, p.lon));
+        const name = document.createElement('span');
+        name.className = 'name';
+        name.textContent = p.name;
+        li.appendChild(name);
+        const meta = document.createElement('span');
+        meta.className = 'meta';
+        const distTxt = p.distMiles != null ? p.distMiles.toFixed(1) + ' mi from track' : '';
+        meta.textContent = [p.address, distTxt].filter(Boolean).join(' · ');
+        li.appendChild(meta);
+        frag.appendChild(li);
+      });
+      listEl.appendChild(frag);
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     // --- Timeline scrubber ---

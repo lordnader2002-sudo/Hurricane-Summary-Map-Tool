@@ -139,6 +139,9 @@
     }).addTo(map);
 
     const layers = {
+      // Comparison layers go in first so they render under the primary
+      compareCone: L.layerGroup().addTo(map),
+      compareTrack: L.layerGroup().addTo(map),
       cone: L.layerGroup().addTo(map),
       ww: L.layerGroup().addTo(map),
       track: L.layerGroup().addTo(map),
@@ -156,6 +159,8 @@
       'Properties': layers.properties,
       'Impacted callouts': layers.callouts,
       'Timeline scrub marker': layers.scrub,
+      'Comparison cone': layers.compareCone,
+      'Comparison track': layers.compareTrack,
     }, { collapsed: true, position: 'topright' }).addTo(map);
 
     let currentStorm = null;
@@ -723,6 +728,31 @@
       renderCallouts();
     }
 
+    // Render a comparison storm as a dashed lighter cone and dashed black
+    // track. Pass null to clear. Track points and ww are intentionally NOT
+    // rendered for the comparison to avoid map clutter.
+    function setCompareStorm(storm) {
+      layers.compareCone.clearLayers();
+      layers.compareTrack.clearLayers();
+      if (!storm) return;
+      if (storm.cone) {
+        L.geoJSON(storm.cone, {
+          style: () => ({
+            fillColor: '#5b9bd5', fillOpacity: 0.12,
+            color: '#1f4e79', weight: 1.5, opacity: 0.7,
+            dashArray: '6 4',
+          }),
+        }).addTo(layers.compareCone);
+      }
+      if (storm.trackLine) {
+        L.geoJSON(storm.trackLine, {
+          style: () => ({
+            color: '#000', weight: 2, opacity: 0.65, dashArray: '5 4',
+          }),
+        }).addTo(layers.compareTrack);
+      }
+    }
+
     // Timeline scrub marker — a haloed hurricane-style marker at an
     // interpolated storm position. Pass null to remove it. The optional
     // bufferMiles draws a translucent yellow buffer ring around it.
@@ -760,6 +790,7 @@
       getTrackPointStyles, applyTrackPointStyles,
       getCalloutState, applyCalloutState,
       setScrubPosition,
+      setCompareStorm,
       setOnTrackStyleChange: fn => { callbacks.onTrackStyleChange = fn || (() => {}); },
       setOnPropertyToggle: fn => { callbacks.onPropertyToggle = fn || (() => {}); },
       setOnCalloutChange: fn => { callbacks.onCalloutChange = fn || (() => {}); },
