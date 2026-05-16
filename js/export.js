@@ -21,52 +21,57 @@
   const TRACK_LABEL_FONT =
     '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
-  function exportPng(controller) {
+  function buildExportCanvas(controller) {
     const map = controller.getMap();
     const { storm } = controller.getCurrent();
     const overlays = controller.getOverlayLabels();
     const container = map.getContainer();
 
+    const size = map.getSize();
+    const canvas = document.createElement('canvas');
+    canvas.width = size.x;
+    canvas.height = size.y;
+    const ctx = canvas.getContext('2d');
+    const base = container.getBoundingClientRect();
+
+    // Background (shows through where tiles haven't loaded)
+    ctx.fillStyle = '#dfe6ec';
+    ctx.fillRect(0, 0, size.x, size.y);
+
+    // 1. Map tiles — already loaded <img> elements in the tile pane
+    container.querySelectorAll('.leaflet-tile-pane img').forEach(img => {
+      if (!img.complete || !img.naturalWidth) return;
+      const r = img.getBoundingClientRect();
+      ctx.drawImage(img, r.left - base.left, r.top - base.top, r.width, r.height);
+    });
+
+    // 2. Vector overlays — the canvas-renderer canvas(es) in the overlay
+    //    pane already have the cone, ww lines, track line, property dots,
+    //    and red leader lines drawn on them.
+    container.querySelectorAll('.leaflet-overlay-pane canvas').forEach(c => {
+      const r = c.getBoundingClientRect();
+      ctx.drawImage(c, r.left - base.left, r.top - base.top, r.width, r.height);
+    });
+
+    // 3. Track-point marker icons (image markers, not divIcons)
+    container.querySelectorAll('.leaflet-marker-pane img').forEach(img => {
+      if (!img.complete || !img.naturalWidth) return;
+      const r = img.getBoundingClientRect();
+      ctx.drawImage(img, r.left - base.left, r.top - base.top, r.width, r.height);
+    });
+
+    // 4. Callout boxes + track labels (HTML overlays — drawn by hand)
+    drawCallouts(ctx, map, overlays.callouts);
+    drawTrackLabels(ctx, map, overlays.trackLabels);
+    drawAttribution(ctx, storm);
+
+    return { canvas, storm };
+  }
+
+  function exportPng(controller) {
     return new Promise((resolve, reject) => {
       try {
-        const size = map.getSize();
-        const canvas = document.createElement('canvas');
-        canvas.width = size.x;
-        canvas.height = size.y;
-        const ctx = canvas.getContext('2d');
-        const base = container.getBoundingClientRect();
-
-        // Background (shows through where tiles haven't loaded)
-        ctx.fillStyle = '#dfe6ec';
-        ctx.fillRect(0, 0, size.x, size.y);
-
-        // 1. Map tiles — already loaded <img> elements in the tile pane
-        container.querySelectorAll('.leaflet-tile-pane img').forEach(img => {
-          if (!img.complete || !img.naturalWidth) return;
-          const r = img.getBoundingClientRect();
-          ctx.drawImage(img, r.left - base.left, r.top - base.top, r.width, r.height);
-        });
-
-        // 2. Vector overlays — the canvas-renderer canvas(es) in the overlay
-        //    pane already have the cone, ww lines, track line, property dots,
-        //    and red leader lines drawn on them.
-        container.querySelectorAll('.leaflet-overlay-pane canvas').forEach(c => {
-          const r = c.getBoundingClientRect();
-          ctx.drawImage(c, r.left - base.left, r.top - base.top, r.width, r.height);
-        });
-
-        // 3. Track-point marker icons (image markers, not divIcons)
-        container.querySelectorAll('.leaflet-marker-pane img').forEach(img => {
-          if (!img.complete || !img.naturalWidth) return;
-          const r = img.getBoundingClientRect();
-          ctx.drawImage(img, r.left - base.left, r.top - base.top, r.width, r.height);
-        });
-
-        // 4. Callout boxes + track labels (HTML overlays — drawn by hand)
-        drawCallouts(ctx, map, overlays.callouts);
-        drawTrackLabels(ctx, map, overlays.trackLabels);
-        drawAttribution(ctx, storm);
-
+        const { canvas, storm } = buildExportCanvas(controller);
         canvas.toBlob(blob => {
           if (!blob) {
             reject(new Error(
@@ -75,10 +80,53 @@
             ));
             return;
           }
-          const filename = buildFilename(storm);
+          const filename = buildFilename(storm, 'png');
           triggerDownload(blob, filename);
           resolve(filename);
         }, 'image/png');
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  function exportPdf(controller) {
+    return new Promise((resolve, reject) => {
+      try {
+        const jspdfNS = window.jspdf;
+        if (!jspdfNS || !jspdfNS.jsPDF) {
+          reject(new Error('PDF library failed to load — check vendor/jspdf.umd.min.js'));
+          return;
+        }
+        const { canvas, storm } = buildExportCanvas(controller);
+        let dataUrl;
+        try {
+          dataUrl = canvas.toDataURL('image/png');
+        } catch (_) {
+          reject(new Error(
+            'Could not encode the image — a map tile may have tainted the '
+            + 'canvas. Try reloading the page so tiles load with CORS.'
+          ));
+          return;
+        }
+
+        // Landscape Letter; fit the canvas inside the page minus a small margin.
+        const doc = new jspdfNS.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const margin = 24;
+        const availW = pageW - margin * 2;
+        const availH = pageH - margin * 2;
+        const scale = Math.min(availW / canvas.width, availH / canvas.height);
+        const drawW = canvas.width * scale;
+        const drawH = canvas.height * scale;
+        const x = (pageW - drawW) / 2;
+        const y = (pageH - drawH) / 2;
+
+        doc.addImage(dataUrl, 'PNG', x, y, drawW, drawH);
+        const filename = buildFilename(storm, 'pdf');
+        doc.save(filename);
+        resolve(filename);
       } catch (e) {
         reject(e);
       }
@@ -183,14 +231,14 @@
     ctx.closePath();
   }
 
-  function buildFilename(storm) {
+  function buildFilename(storm, ext) {
     const name = storm && storm.stormName
       ? storm.stormName.replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
       : 'hurricane';
     const date = (storm && storm.advisoryDate)
       ? storm.advisoryDate.replace(/-/g, '')
       : new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    return `${name || 'hurricane'}_${date}_summary.png`;
+    return `${name || 'hurricane'}_${date}_summary.${ext || 'png'}`;
   }
 
   function triggerDownload(blob, filename) {
@@ -204,5 +252,5 @@
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
-  window.HurricaneExport = { exportPng, triggerDownload };
+  window.HurricaneExport = { exportPng, exportPdf, triggerDownload };
 })();

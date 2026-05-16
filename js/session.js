@@ -21,14 +21,14 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'hurricane-tool-session-v2';
+  const STORAGE_KEY = 'hurricane-tool-session-v3';
   const SAVE_DEBOUNCE_MS = 400;
 
   let saveTimer = null;
 
   function captureSnapshot(state, ctrl) {
     return {
-      version: 2,
+      version: 3,
       savedAt: Date.now(),
       storm: {
         parts: state.parts || [],
@@ -37,6 +37,10 @@
       properties: {
         rows: state.rawProperties || [],
         source: state.propertiesSource || '',
+      },
+      compareStorm: {
+        parts: state.compareParts || [],
+        fileNames: (state.compareParts || []).map(p => p.fileName || ''),
       },
       bufferMiles: state.bufferMiles,
       labelsVisible: state.labelsVisible !== false,
@@ -62,6 +66,15 @@
     if (snap.properties && Array.isArray(snap.properties.rows)) {
       state.rawProperties = snap.properties.rows.slice();
       state.propertiesSource = snap.properties.source || '';
+    }
+
+    // Comparison advisory
+    if (snap.compareStorm && Array.isArray(snap.compareStorm.parts)
+        && snap.compareStorm.parts.length) {
+      state.compareParts = snap.compareStorm.parts.slice();
+      const compareStorm = window.HurricaneKMZ.mergeParts(state.compareParts);
+      state.compareStorm = compareStorm;
+      ctrl.setCompareStorm(compareStorm);
     }
 
     // Buffer + labels
@@ -101,7 +114,7 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
       const snap = JSON.parse(raw);
-      if (!snap || snap.version !== 2) return null;
+      if (!snap || snap.version !== 3) return null;
       return snap;
     } catch (err) {
       console.warn('Session load failed:', err && err.message ? err.message : err);

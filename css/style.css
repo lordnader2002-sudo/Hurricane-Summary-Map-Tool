@@ -583,3 +583,180 @@ body {
   .layout { grid-template-columns: 1fr; grid-template-rows: 1fr 280px; }
   .side-panel { border-left: 0; border-top: 1px solid var(--panel-border); }
 }
+
+/* Focus-visible outlines — orthogonal to :hover, only show on keyboard nav */
+.btn:focus-visible,
+input[type="range"]:focus-visible,
+input[type="color"]:focus-visible,
+input[type="checkbox"]:focus-visible,
+input[type="text"]:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+details > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Toast notification stack (bottom-right) */
+#toastRegion {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  max-width: min(420px, calc(100vw - 32px));
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid var(--toolbar-border);
+  border-left: 4px solid var(--muted);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+  animation: toast-in 0.18s ease-out;
+}
+.toast-error { border-left-color: var(--impacted); }
+.toast-warn { border-left-color: #c98a00; }
+.toast-success { border-left-color: #2d7a3f; }
+.toast-info { border-left-color: var(--header-bg); }
+.toast-body { flex: 1; min-width: 0; }
+.toast-msg { font-weight: 600; word-wrap: break-word; }
+.toast-error .toast-msg { color: var(--impacted); }
+.toast-success .toast-msg { color: #2d7a3f; }
+.toast-warn .toast-msg { color: #8a5d00; }
+.toast-detail {
+  margin-top: 6px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.toast-detail summary {
+  cursor: pointer;
+  font-size: 12px;
+  user-select: none;
+}
+.toast-detail pre {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  background: #f4f6f8;
+  border-radius: 3px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 160px;
+  overflow: auto;
+  color: var(--text);
+}
+.toast-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.toast-action {
+  padding: 3px 10px;
+  background: #fff;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text);
+}
+.toast-action:hover { background: #eef2f6; }
+.toast-close {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  margin-top: -2px;
+}
+.toast-close:hover { color: var(--text); }
+.toast-leaving {
+  animation: toast-out 0.18s ease-in forwards;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(20px); }
+}
+
+/* Shortcut help dialog (toggled by ?) */
+#shortcutHelp {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(29, 39, 51, 0.55);
+}
+#shortcutHelp[hidden] { display: none; }
+.shortcut-panel {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  padding: 20px 24px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 60px);
+  overflow: auto;
+}
+.shortcut-panel h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  color: var(--header-bg);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.shortcut-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+.shortcut-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--panel-border);
+}
+.shortcut-list li:last-child { border-bottom: 0; }
+.shortcut-list kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  background: #f4f6f8;
+  border: 1px solid var(--toolbar-border);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 1px 6px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.shortcut-close {
+  width: 100%;
+  padding: 7px;
+  background: var(--header-bg);
+  border: 1px solid var(--header-bg);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+.shortcut-close:hover { background: #163a5c; }

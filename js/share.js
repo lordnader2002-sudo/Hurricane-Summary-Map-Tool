@@ -18,7 +18,7 @@
 (function () {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const HASH_PARAM = 's';
 
   function encode(state, ctrl) {
@@ -27,6 +27,7 @@
       ts: Date.now(),
       fileNames: (state.parts || []).map(p => p.fileName || ''),
       csvFileName: state.propertiesSource || '',
+      compareFileNames: (state.compareParts || []).map(p => p.fileName || ''),
       bufferMiles: state.bufferMiles,
       labelsVisible: state.labelsVisible !== false,
       trackPointStyles: ctrl.getTrackPointStyles(),
@@ -51,34 +52,46 @@
       const payload = JSON.parse(json);
       if (!payload || payload.v !== VERSION) return null;
       return payload;
+      // (older v1 shares are silently ignored — comparison support is new)
     } catch (err) {
       console.warn('Share decode failed:', err && err.message ? err.message : err);
       return null;
     }
   }
 
-  // Apply whichever pieces are loadable given the current state. Returns true
-  // (eventually) if everything was applied so the caller can clear the
-  // pending share, or false if the receiver still needs to upload files.
+  // Apply whichever pieces are loadable given the current state. Comparison
+  // is treated as optional — primary + CSV applies as soon as both are
+  // present, and a comparison-still-needed signal is returned so the app can
+  // surface a follow-up prompt.
+  //
+  // Return shape:
+  //   { applied: false }                       waiting on primary/CSV
+  //   { applied: true, needsCompare: [...] }   ready; comparison may still be missing
   async function applyPending(payload, state, ctrl) {
-    if (!payload) return true;
+    if (!payload) return { applied: true, needsCompare: [] };
     const needStorm = (payload.fileNames || []).length > 0;
     const needCsv = !!payload.csvFileName;
+    const needCompare = (payload.compareFileNames || []).length > 0;
     const haveStorm = state.parts.length > 0;
     const haveCsv = state.rawProperties.length > 0;
+    const haveCompare = (state.compareParts || []).length > 0;
 
     // Hold off until the receiver has uploaded the prerequisites — callout
     // positions and manual flags only make sense once those are present.
-    if (needStorm && !haveStorm) return false;
-    if (needCsv && !haveCsv) return false;
+    if (needStorm && !haveStorm) return { applied: false, needsCompare: [] };
+    if (needCsv && !haveCsv) return { applied: false, needsCompare: [] };
 
     // Build a snapshot-shaped object keeping whatever the user just uploaded
     // and feed it through the session restore path so logic stays in one
     // place.
     const snap = {
-      version: 2,
+      version: 3,
       storm: { parts: state.parts.slice(), fileNames: payload.fileNames || [] },
       properties: { rows: state.rawProperties.slice(), source: state.propertiesSource },
+      compareStorm: {
+        parts: (state.compareParts || []).slice(),
+        fileNames: payload.compareFileNames || [],
+      },
       bufferMiles: payload.bufferMiles,
       labelsVisible: payload.labelsVisible,
       trackPointStyles: payload.trackPointStyles || {},
@@ -88,7 +101,8 @@
     };
 
     await HurricaneSession.applySnapshot(snap, state, ctrl);
-    return true;
+    const stillNeeded = (needCompare && !haveCompare) ? payload.compareFileNames : [];
+    return { applied: true, needsCompare: stillNeeded };
   }
 
   function filenameMismatchSummary(payload, state) {
@@ -97,8 +111,12 @@
     const missing = expected.filter(n => !got.includes(n));
     const extra = got.filter(n => n && !expected.includes(n));
     const csvOk = !payload.csvFileName || payload.csvFileName === state.propertiesSource;
+    const expectedCompare = (payload.compareFileNames || []).slice().sort();
+    const gotCompare = (state.compareParts || []).map(p => p.fileName || '').sort();
+    const compareMissing = expectedCompare.filter(n => !gotCompare.includes(n));
     return { missing, extra, csvOk,
-      csvExpected: payload.csvFileName, csvGot: state.propertiesSource };
+      csvExpected: payload.csvFileName, csvGot: state.propertiesSource,
+      compareMissing };
   }
 
   window.HurricaneShare = { encode, decodePendingShare, applyPending, filenameMismatchSummary };
