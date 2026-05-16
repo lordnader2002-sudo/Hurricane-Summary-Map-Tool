@@ -1,4 +1,4 @@
-/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession */
+/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare */
 /*
  * App bootstrap — wires the UI controls (file inputs, slider, export button,
  * impacted-property side list) to the parsing/impact/render modules.
@@ -28,6 +28,7 @@
       trackPointsList: document.getElementById('trackPointsList'),
       trackPointsCount: document.getElementById('trackPointsCount'),
       resetBtn: document.getElementById('resetBtn'),
+      shareBtn: document.getElementById('shareBtn'),
       restoreBanner: document.getElementById('restoreBanner'),
       restoreBannerText: document.getElementById('restoreBannerText'),
       restoreBtn: document.getElementById('restoreBtn'),
@@ -46,6 +47,8 @@
       manualOverride: new Map(),
       // Suppress session.save() while we're restoring a snapshot
       suppressSave: false,
+      // Pending share payload from #s=… on the URL, applied after upload
+      pendingShare: null,
     };
 
     const ctrl = HurricaneMap.init('map');
@@ -87,6 +90,35 @@
       state.labelsVisible = e.target.checked;
       ctrl.setLabelsVisible(e.target.checked);
       scheduleSave();
+    });
+
+    els.shareBtn.addEventListener('click', async () => {
+      if (state.parts.length === 0 && state.rawProperties.length === 0) {
+        setStatus('Nothing to share yet — upload a storm or CSV first', 'error');
+        return;
+      }
+      try {
+        const url = HurricaneShare.encode(state, ctrl);
+        await navigator.clipboard.writeText(url);
+        const fileBits = [];
+        if (state.parts.length) fileBits.push((state.parts || []).map(p => p.fileName).join(', '));
+        if (state.propertiesSource) fileBits.push(state.propertiesSource);
+        setStatus(
+          `Copied share URL to clipboard. Recipient must upload: ${fileBits.join(' + ') || '(no files)'}`,
+          'success'
+        );
+      } catch (err) {
+        console.error(err);
+        // Clipboard API can fail (insecure context, permissions); fall back to
+        // setting a prompt-like input so the user can copy manually.
+        try {
+          const url = HurricaneShare.encode(state, ctrl);
+          window.prompt('Copy this URL:', url);
+          setStatus('Share URL ready (copy from the prompt)', 'success');
+        } catch (e2) {
+          setStatus('Share failed: ' + (err && err.message ? err.message : err), 'error');
+        }
+      }
     });
 
     els.resetBtn.addEventListener('click', () => {
@@ -206,6 +238,8 @@
         ctrl.fit();
         els.exportBtn.disabled = false;
         els.exportCsvBtn.disabled = false;
+        els.shareBtn.disabled = false;
+        await maybeApplyPendingShare();
         scheduleSave();
 
         const bits = [
@@ -235,6 +269,8 @@
         state.propertiesSource = file.name;
         recomputeAndRender();
         ctrl.fit();
+        els.shareBtn.disabled = false;
+        await maybeApplyPendingShare();
         scheduleSave();
         const skipMsg = skipped > 0 ? ` (${skipped} row(s) skipped — no usable lat/lon)` : '';
         setStatus(`Loaded ${properties.length} properties${skipMsg}`, 'success');
@@ -454,8 +490,64 @@
       }
     }
 
-    // Restore prompt on page load
+    async function maybeApplyPendingShare() {
+      if (!state.pendingShare) return;
+      state.suppressSave = true;
+      try {
+        const done = await HurricaneShare.applyPending(state.pendingShare, state, ctrl);
+        if (!done) return;   // still waiting on the other file
+        // Sync UI controls and surface any filename mismatch as a warning
+        els.bufferSlider.value = String(state.bufferMiles);
+        els.bufferValue.textContent = `${state.bufferMiles} mi`;
+        els.labelsToggle.checked = state.labelsVisible !== false;
+        const defaults = ctrl.getTrackDefaults();
+        els.trackShapeDefault.value = defaults.shape;
+        els.trackColorByCategory.checked = defaults.colorByCategory;
+        els.trackColorDefault.value = defaults.color;
+        els.trackColorDefault.disabled = defaults.colorByCategory;
+        renderTrackPointList();
+        recomputeAndRender();
+
+        const mm = HurricaneShare.filenameMismatchSummary(state.pendingShare, state);
+        const warnings = [];
+        if (mm.missing.length) warnings.push('missing: ' + mm.missing.join(', '));
+        if (!mm.csvOk && mm.csvExpected) {
+          warnings.push(`expected CSV "${mm.csvExpected}", got "${mm.csvGot || '(none)'}"`);
+        }
+        if (warnings.length) {
+          setStatus('Shared view applied with warnings — ' + warnings.join('; '), 'error');
+        } else {
+          setStatus('Shared view applied', 'success');
+        }
+        state.pendingShare = null;
+        // Clear the share hash so a follow-up refresh doesn't re-prompt
+        if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+      } finally {
+        state.suppressSave = false;
+      }
+    }
+
+    // Pending share decode on page load
+    (function maybeDecodeShare() {
+      const payload = HurricaneShare.decodePendingShare();
+      if (!payload) return;
+      state.pendingShare = payload;
+      const expected = [];
+      if (payload.fileNames && payload.fileNames.length) {
+        expected.push(payload.fileNames.join(', '));
+      }
+      if (payload.csvFileName) expected.push(payload.csvFileName);
+      setStatus(
+        'Shared view detected. Upload to apply: ' + (expected.join(' + ') || '(no files needed)'),
+        'success'
+      );
+    })();
+
+    // Restore prompt on page load. A pending share URL takes precedence —
+    // we don't want the user restoring an old session that would clobber
+    // what the share link wants to apply on top of their fresh uploads.
     (function maybePromptRestore() {
+      if (state.pendingShare) return;
       const snap = HurricaneSession.load();
       if (!snap) return;
       const when = snap.savedAt ? new Date(snap.savedAt) : null;

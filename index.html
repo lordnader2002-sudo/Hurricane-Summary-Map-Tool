@@ -38,6 +38,7 @@
 
     <button class="btn primary" id="exportBtn" disabled>Export PNG</button>
     <button class="btn" id="exportCsvBtn" disabled>Export Impacted CSV</button>
+    <button class="btn" id="shareBtn" disabled title="Copy a URL that recreates this view">Share view</button>
     <button class="btn danger" id="resetBtn" title="Clear saved session and reload">Reset</button>
 
     <div class="status" id="status"></div>
@@ -116,6 +117,7 @@
   <script src="vendor/papaparse.min.js"></script>
   <script src="vendor/turf.min.js"></script>
   <script src="vendor/shp.min.js"></script>
+  <script src="vendor/lz-string.min.js"></script>
 
   <!-- App modules -->
   <script src="js/kmz.js"></script>
@@ -125,6 +127,7 @@
   <script src="js/map.js"></script>
   <script src="js/export.js"></script>
   <script src="js/session.js"></script>
+  <script src="js/share.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
