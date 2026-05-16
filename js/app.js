@@ -139,15 +139,20 @@
       try {
         const url = HurricaneShare.encode(state, ctrl);
         await navigator.clipboard.writeText(url);
-        const fileBits = [];
-        if (state.parts.length) fileBits.push((state.parts || []).map(p => p.fileName).join(', '));
-        if (state.propertiesSource) fileBits.push(state.propertiesSource);
-        if (state.compareParts.length) fileBits.push((state.compareParts || []).map(p => p.fileName).join(', '));
+        const sizeKb = Math.round(url.length / 1024);
+        const bits = [];
+        if (state.parts.length) bits.push(`${state.storm ? state.storm.trackPoints.features.length + ' track points' : 'storm'}`);
+        if (state.rawProperties.length) bits.push(`${state.rawProperties.length} properties`);
+        if (state.compareParts.length) bits.push('comparison advisory');
         setStatus(
-          `Copied share URL to clipboard. Recipient must upload: ${fileBits.join(' + ') || '(no files)'}`,
+          `Copied share URL (${sizeKb} KB) to clipboard — recipient opens it and the view loads automatically.`,
           'success'
         );
-        HurricaneToast.show('Share URL copied to clipboard', 'success');
+        HurricaneToast.show(
+          `Share URL copied (${sizeKb} KB)`,
+          'success',
+          { detail: 'Embeds: ' + (bits.join(', ') || 'customisations only') }
+        );
       } catch (err) {
         // Clipboard API can fail (insecure context, permissions); fall back to
         // setting a prompt-like input so the user can copy manually.
@@ -692,11 +697,19 @@
       }
     }
 
-    // Pending share decode on page load
-    (function maybeDecodeShare() {
+    // Pending share decode on page load. v3 shares embed the data and apply
+    // immediately; legacy v2 shares carry only filenames and wait for the
+    // receiver to upload before maybeApplyPendingShare() completes.
+    (async function maybeDecodeShare() {
       const payload = HurricaneShare.decodePendingShare();
       if (!payload) return;
       state.pendingShare = payload;
+      if (payload.v === 3) {
+        setStatus('Loading shared view…');
+        await applyEmbeddedShare();
+        return;
+      }
+      // Legacy v2: explain what to upload.
       const expected = [];
       if (payload.fileNames && payload.fileNames.length) {
         expected.push(payload.fileNames.join(', '));
@@ -710,6 +723,26 @@
         'success'
       );
     })();
+
+    async function applyEmbeddedShare() {
+      await maybeApplyPendingShare();
+      // Refresh the UI surfaces that handleFilesUpload/handleCsvUpload would
+      // normally render after a fresh upload.
+      if (state.storm) {
+        renderStormMeta();
+        renderCategoryLegend();
+        renderWWLegend();
+        renderTrackPointList();
+        refreshTimelineRange();
+        els.exportBtn.disabled = false;
+        els.exportPdfBtn.disabled = false;
+        els.exportCsvBtn.disabled = false;
+      }
+      if (state.storm || state.rawProperties.length) {
+        els.shareBtn.disabled = false;
+        ctrl.fit();
+      }
+    }
 
     // Restore prompt on page load. A pending share URL takes precedence —
     // we don't want the user restoring an old session that would clobber

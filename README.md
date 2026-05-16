@@ -119,11 +119,13 @@ one zoom level that's too tight and the next that's too loose.
   (red) clears the saved session and reloads — handy when starting a new
   storm from scratch.
 - **Share view.** Click **Share view** in the toolbar to copy a URL that
-  encodes all of your customisations (compressed in the URL hash). The
-  recipient opens the URL, uploads the same NHC files + properties CSV
-  (filenames are listed in the status bar), and the tool replays your
-  configuration on top. The URL stays well under browser size limits even
-  for heavily customised views.
+  embeds the parsed storm parts, the properties rows, any loaded comparison
+  advisory, and all of your customisations (LZ-String compressed in the
+  URL hash). The recipient opens the URL and the tool hydrates the map
+  automatically — no re-upload required. Typical advisories produce
+  URLs in the 5–30 KB range, well within email/Slack limits; the toast
+  on copy shows the exact size. Legacy filenames-only share URLs
+  generated before this version still work but require re-upload.
 - **Timeline scrubber.** When a storm with timestamped track points is
   loaded, a horizontal time slider appears between the toolbar and the
   map. Dragging it animates a yellow haloed scrub marker along the
