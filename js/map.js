@@ -176,10 +176,11 @@
     // Live callout descriptors, for the PNG exporter
     let calloutData = [];
 
-    // Callbacks back to app.js; replaced via setOnTrackStyleChange / setOnPropertyToggle
+    // Callbacks back to app.js; replaced via setters below
     const callbacks = {
       onTrackStyleChange: () => {},
       onPropertyToggle: () => {},
+      onCalloutChange: () => {},
     };
 
     // ---- Storm layers ----------------------------------------------------
@@ -521,6 +522,7 @@
           leader.setLatLngs([ll, targetLL]);
           descriptor.position = { lat: ll.lat, lng: ll.lng };
           calloutPositions[id] = descriptor.position;
+          callbacks.onCalloutChange();
         });
 
         marker.bindPopup(() => buildCalloutEditor(id, defaultLines, descriptor, marker));
@@ -568,6 +570,7 @@
           descriptor.lines = newLines;
         }
         marker.setIcon(makeCalloutIcon(descriptor.lines));
+        callbacks.onCalloutChange();
       });
       wrap.appendChild(ta);
 
@@ -692,12 +695,41 @@
       setTimeout(() => marker.openPopup(), 700);
     }
 
+    // Snapshot/restore helpers — populated/cleared without firing the change
+    // callbacks, so restoring a saved session doesn't trigger another save.
+    function getTrackPointStyles() {
+      return JSON.parse(JSON.stringify(trackPointStyles));
+    }
+    function applyTrackPointStyles(styles) {
+      Object.keys(trackPointStyles).forEach(k => delete trackPointStyles[k]);
+      Object.assign(trackPointStyles, styles || {});
+      renderTrackPoints();
+    }
+    function getCalloutState() {
+      return {
+        positions: JSON.parse(JSON.stringify(calloutPositions)),
+        textOverrides: JSON.parse(JSON.stringify(calloutTextOverrides)),
+      };
+    }
+    function applyCalloutState(s) {
+      Object.keys(calloutPositions).forEach(k => delete calloutPositions[k]);
+      Object.keys(calloutTextOverrides).forEach(k => delete calloutTextOverrides[k]);
+      if (s) {
+        Object.assign(calloutPositions, s.positions || {});
+        Object.assign(calloutTextOverrides, s.textOverrides || {});
+      }
+      renderCallouts();
+    }
+
     return {
       setStorm, setProperties, fit, flyTo, setLabelsVisible,
       setTrackDefaults, getTrackDefaults,
       getTrackPointsWithStyle, openTrackPoint,
+      getTrackPointStyles, applyTrackPointStyles,
+      getCalloutState, applyCalloutState,
       setOnTrackStyleChange: fn => { callbacks.onTrackStyleChange = fn || (() => {}); },
       setOnPropertyToggle: fn => { callbacks.onPropertyToggle = fn || (() => {}); },
+      setOnCalloutChange: fn => { callbacks.onCalloutChange = fn || (() => {}); },
       getMap: () => map,
       getLayers: () => layers,
       getCurrent: () => ({ storm: currentStorm, properties: currentProperties }),

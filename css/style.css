@@ -72,6 +72,25 @@ body {
 }
 .btn.primary:hover:not(:disabled) { background: #163a5c; }
 .btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.danger {
+  background: #fff;
+  border-color: #d6dbe0;
+  color: var(--impacted);
+}
+.btn.danger:hover:not(:disabled) { background: #fef0f0; border-color: var(--impacted); }
+.btn.small { padding: 4px 10px; font-size: 12px; }
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff8e6;
+  border-bottom: 1px solid #f0c36d;
+  padding: 8px 20px;
+  font-size: 13px;
+}
+.banner-text { flex: 1; color: var(--text); }
+.banner[hidden] { display: none; }
 
 .buffer-control {
   display: flex;

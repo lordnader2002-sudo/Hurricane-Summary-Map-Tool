@@ -38,8 +38,15 @@
 
     <button class="btn primary" id="exportBtn" disabled>Export PNG</button>
     <button class="btn" id="exportCsvBtn" disabled>Export Impacted CSV</button>
+    <button class="btn danger" id="resetBtn" title="Clear saved session and reload">Reset</button>
 
     <div class="status" id="status"></div>
+  </div>
+
+  <div class="banner" id="restoreBanner" hidden>
+    <span class="banner-text" id="restoreBannerText">A saved session was found.</span>
+    <button class="btn primary small" id="restoreBtn">Restore</button>
+    <button class="btn small" id="dismissRestoreBtn">Start fresh</button>
   </div>
 
   <main class="layout">
@@ -117,6 +124,7 @@
   <script src="js/impact.js"></script>
   <script src="js/map.js"></script>
   <script src="js/export.js"></script>
+  <script src="js/session.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
