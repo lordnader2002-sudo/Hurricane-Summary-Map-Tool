@@ -92,6 +92,40 @@ body {
 .banner-text { flex: 1; color: var(--text); }
 .banner[hidden] { display: none; }
 
+.timeline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f4f6f8;
+  border-bottom: 1px solid var(--toolbar-border);
+  padding: 6px 20px;
+  font-size: 13px;
+}
+.timeline[hidden] { display: none; }
+.timeline-label { color: var(--muted); font-weight: 600; }
+.timeline input[type="range"] { flex: 1; }
+.timeline-time {
+  min-width: 220px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text);
+  text-align: right;
+}
+
+.scrub-marker {
+  background: transparent !important;
+  border: 0 !important;
+  filter: drop-shadow(0 0 4px rgba(255, 209, 26, 0.9));
+}
+.scrub-marker img { display: block; }
+
+.scrub-meta {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin-bottom: 8px;
+}
+
 .buffer-control {
   display: flex;
   align-items: center;

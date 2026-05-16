@@ -145,6 +145,7 @@
       trackPoints: L.layerGroup().addTo(map),
       properties: L.layerGroup().addTo(map),
       callouts: L.layerGroup().addTo(map),
+      scrub: L.layerGroup().addTo(map),
     };
 
     L.control.layers(null, {
@@ -154,6 +155,7 @@
       'Track points': layers.trackPoints,
       'Properties': layers.properties,
       'Impacted callouts': layers.callouts,
+      'Timeline scrub marker': layers.scrub,
     }, { collapsed: true, position: 'topright' }).addTo(map);
 
     let currentStorm = null;
@@ -721,12 +723,43 @@
       renderCallouts();
     }
 
+    // Timeline scrub marker — a haloed hurricane-style marker at an
+    // interpolated storm position. Pass null to remove it. The optional
+    // bufferMiles draws a translucent yellow buffer ring around it.
+    function setScrubPosition(latlng, opts) {
+      layers.scrub.clearLayers();
+      if (!latlng) return;
+      opts = opts || {};
+      const iconUrl = svgIcon('hurricane', opts.color || '#ffd11a', 30);
+      const icon = L.divIcon({
+        className: 'scrub-marker',
+        html: `<img src="${iconUrl}" width="30" height="30" alt="scrub" />`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+      });
+      L.marker(latlng, { icon, interactive: false, zIndexOffset: 900 })
+        .addTo(layers.scrub);
+      if (opts.bufferMiles && opts.bufferMiles > 0) {
+        L.circle(latlng, {
+          radius: opts.bufferMiles * 1609.344,
+          color: '#ffd11a',
+          weight: 2,
+          opacity: 0.7,
+          fillColor: '#ffd11a',
+          fillOpacity: 0.1,
+          dashArray: '6 4',
+          interactive: false,
+        }).addTo(layers.scrub);
+      }
+    }
+
     return {
       setStorm, setProperties, fit, flyTo, setLabelsVisible,
       setTrackDefaults, getTrackDefaults,
       getTrackPointsWithStyle, openTrackPoint,
       getTrackPointStyles, applyTrackPointStyles,
       getCalloutState, applyCalloutState,
+      setScrubPosition,
       setOnTrackStyleChange: fn => { callbacks.onTrackStyleChange = fn || (() => {}); },
       setOnPropertyToggle: fn => { callbacks.onPropertyToggle = fn || (() => {}); },
       setOnCalloutChange: fn => { callbacks.onCalloutChange = fn || (() => {}); },

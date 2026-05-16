@@ -1,4 +1,4 @@
-/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare */
+/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline */
 /*
  * App bootstrap — wires the UI controls (file inputs, slider, export button,
  * impacted-property side list) to the parsing/impact/render modules.
@@ -33,6 +33,14 @@
       restoreBannerText: document.getElementById('restoreBannerText'),
       restoreBtn: document.getElementById('restoreBtn'),
       dismissRestoreBtn: document.getElementById('dismissRestoreBtn'),
+      timeline: document.getElementById('timeline'),
+      timelineSlider: document.getElementById('timelineSlider'),
+      timelineTime: document.getElementById('timelineTime'),
+      timelineClearBtn: document.getElementById('timelineClearBtn'),
+      scrubPanel: document.getElementById('scrubPanel'),
+      scrubMeta: document.getElementById('scrubMeta'),
+      scrubList: document.getElementById('scrubList'),
+      scrubCount: document.getElementById('scrubCount'),
     };
 
     const state = {
@@ -90,6 +98,13 @@
       state.labelsVisible = e.target.checked;
       ctrl.setLabelsVisible(e.target.checked);
       scheduleSave();
+    });
+
+    els.timelineSlider.addEventListener('input', () => updateScrub(true));
+    els.timelineClearBtn.addEventListener('click', () => {
+      ctrl.setScrubPosition(null);
+      els.scrubPanel.hidden = true;
+      els.timelineTime.textContent = '';
     });
 
     els.shareBtn.addEventListener('click', async () => {
@@ -234,6 +249,7 @@
         renderCategoryLegend();
         renderWWLegend();
         renderTrackPointList();
+        refreshTimelineRange();
         recomputeAndRender();
         ctrl.fit();
         els.exportBtn.disabled = false;
@@ -475,8 +491,10 @@
           renderCategoryLegend();
           renderWWLegend();
           renderTrackPointList();
+          refreshTimelineRange();
           els.exportBtn.disabled = false;
           els.exportCsvBtn.disabled = false;
+          els.shareBtn.disabled = false;
         }
         recomputeAndRender();
         if (state.storm || state.rawProperties.length) ctrl.fit();
@@ -601,6 +619,75 @@
         ].map(csvField).join(','));
       });
       return lines.join('\n') + '\n';
+    }
+
+    // --- Timeline scrubber ---
+
+    function refreshTimelineRange() {
+      const range = state.storm
+        ? HurricaneTimeline.getTimeRange(state.storm.trackPoints)
+        : null;
+      if (!range) {
+        els.timeline.hidden = true;
+        els.scrubPanel.hidden = true;
+        ctrl.setScrubPosition(null);
+        return;
+      }
+      els.timeline.hidden = false;
+      els.timelineSlider.min = String(range.tMin);
+      els.timelineSlider.max = String(range.tMax);
+      els.timelineSlider.step = String(Math.max(60_000, Math.round((range.tMax - range.tMin) / 200)));
+      els.timelineSlider.value = String(range.tMin);
+      els.timelineTime.textContent = HurricaneTimeline.formatTime(range.tMin) + '  (drag →)';
+      ctrl.setScrubPosition(null);
+      els.scrubPanel.hidden = true;
+    }
+
+    function updateScrub(showPanel) {
+      if (!state.storm) return;
+      const t = parseInt(els.timelineSlider.value, 10);
+      const pos = HurricaneTimeline.interpolatePosition(state.storm.trackPoints, t);
+      if (!pos) return;
+      ctrl.setScrubPosition([pos.lat, pos.lon], {
+        bufferMiles: state.bufferMiles,
+      });
+      els.timelineTime.textContent = HurricaneTimeline.formatTime(t);
+
+      if (showPanel) {
+        const near = HurricaneTimeline.propertiesNear(
+          state.properties, pos, state.bufferMiles
+        );
+        els.scrubCount.textContent = String(near.length);
+        els.scrubMeta.textContent =
+          `Storm at ${pos.lat.toFixed(2)}, ${pos.lon.toFixed(2)}`
+          + (pos.label ? ' · ' + pos.label : '')
+          + ` · within ${state.bufferMiles} mi of ${near.length} property` + (near.length === 1 ? '' : 'ies');
+        els.scrubList.innerHTML = '';
+        if (near.length === 0) {
+          const li = document.createElement('li');
+          li.className = 'empty';
+          li.textContent = 'No properties within buffer at this time';
+          els.scrubList.appendChild(li);
+        } else {
+          const frag = document.createDocumentFragment();
+          near.forEach(p => {
+            const li = document.createElement('li');
+            li.title = 'Click to zoom to property';
+            li.addEventListener('click', () => ctrl.flyTo(p.lat, p.lon));
+            const name = document.createElement('span');
+            name.className = 'name';
+            name.textContent = p.name;
+            li.appendChild(name);
+            const meta = document.createElement('span');
+            meta.className = 'meta';
+            meta.textContent = [p.address, p.distMiles.toFixed(1) + ' mi'].filter(Boolean).join(' · ');
+            li.appendChild(meta);
+            frag.appendChild(li);
+          });
+          els.scrubList.appendChild(frag);
+        }
+        els.scrubPanel.hidden = false;
+      }
     }
 
     function buildExportFilename(storm, suffix, ext) {
