@@ -14,7 +14,7 @@
     <div class="storm-meta" id="stormMeta">No storm loaded</div>
   </header>
 
-  <div class="toolbar">
+  <div class="toolbar" role="toolbar" aria-label="Tool actions">
     <label class="btn">
       Upload KMZ / ZIP
       <input type="file" id="kmzInput" accept=".kmz,.kml,.zip" multiple hidden />
@@ -32,7 +32,8 @@
 
     <div class="buffer-control">
       <label for="bufferSlider">Buffer:</label>
-      <input type="range" id="bufferSlider" min="0" max="500" step="10" value="100" />
+      <input type="range" id="bufferSlider" min="0" max="500" step="10" value="100"
+             aria-describedby="bufferValue" />
       <span id="bufferValue">100 mi</span>
     </div>
 
@@ -42,24 +43,26 @@
     </label>
 
     <button class="btn primary" id="exportBtn" disabled>Export PNG</button>
+    <button class="btn primary" id="exportPdfBtn" disabled>Export PDF</button>
     <button class="btn" id="exportCsvBtn" disabled>Export Impacted CSV</button>
     <button class="btn" id="shareBtn" disabled title="Copy a URL that recreates this view">Share view</button>
     <button class="btn danger" id="resetBtn" title="Clear saved session and reload">Reset</button>
 
-    <div class="status" id="status"></div>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
   </div>
 
-  <div class="banner" id="restoreBanner" hidden>
+  <div class="banner" id="restoreBanner" role="status" aria-live="polite" hidden>
     <span class="banner-text" id="restoreBannerText">A saved session was found.</span>
     <button class="btn primary small" id="restoreBtn">Restore</button>
     <button class="btn small" id="dismissRestoreBtn">Start fresh</button>
   </div>
 
-  <div class="timeline" id="timeline" hidden>
+  <div class="timeline" id="timeline" role="region" aria-label="Storm timeline" hidden>
     <label class="timeline-label" for="timelineSlider">Timeline:</label>
     <input type="range" id="timelineSlider" min="0" max="100" step="1" value="0" />
     <span class="timeline-time" id="timelineTime"></span>
-    <button class="btn small" id="timelineClearBtn" title="Clear scrub marker">×</button>
+    <button class="btn small" id="timelineClearBtn"
+            title="Clear scrub marker" aria-label="Clear timeline scrub marker">×</button>
   </div>
 
   <main class="layout">
@@ -147,6 +150,21 @@
     </aside>
   </main>
 
+  <div id="shortcutHelp" role="dialog" aria-modal="true"
+       aria-labelledby="shortcutHelpTitle" hidden>
+    <div class="shortcut-panel">
+      <h2 id="shortcutHelpTitle">Keyboard shortcuts</h2>
+      <ul class="shortcut-list">
+        <li><span>Export PNG</span> <kbd>Ctrl/⌘ + E</kbd></li>
+        <li><span>Share view</span> <kbd>Ctrl/⌘ + Shift + S</kbd></li>
+        <li><span>Step timeline back / forward</span> <kbd>← / →</kbd></li>
+        <li><span>Clear scrub or comparison</span> <kbd>Esc</kbd></li>
+        <li><span>Toggle this help</span> <kbd>?</kbd></li>
+      </ul>
+      <button type="button" class="shortcut-close" id="shortcutHelpClose">Close</button>
+    </div>
+  </div>
+
   <!-- Vendor libs (self-hosted in /vendor so the tool works without CDN access) -->
   <script src="vendor/leaflet/leaflet.js"></script>
   <script src="vendor/jszip.min.js"></script>
@@ -154,8 +172,10 @@
   <script src="vendor/turf.min.js"></script>
   <script src="vendor/shp.min.js"></script>
   <script src="vendor/lz-string.min.js"></script>
+  <script src="vendor/jspdf.umd.min.js"></script>
 
   <!-- App modules -->
+  <script src="js/toast.js"></script>
   <script src="js/kmz.js"></script>
   <script src="js/shapefile.js"></script>
   <script src="js/csv.js"></script>

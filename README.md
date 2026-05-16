@@ -91,10 +91,14 @@ properties + dragged-on KMZ).
    includes the storm name and advisory date, e.g.
    `AL132025_20251030_summary.png`.
 
-9. **Export Impacted CSV** — downloads a CSV containing only the impacted
-   properties, with columns `property_id, name, address, postal_code, lat,
-   lon, dist_miles, in_cone, manually_flagged`. Use it to email or hand off
-   the at-risk list.
+9. **Export PDF** — same composited map, emitted as a single-page landscape
+   PDF that drops cleanly into incident reports without an intermediate
+   screenshot step. Built from the same canvas as the PNG export.
+
+10. **Export Impacted CSV** — downloads a CSV containing only the impacted
+    properties, with columns `property_id, name, address, postal_code, lat,
+    lon, dist_miles, in_cone, manually_flagged`. Use it to email or hand off
+    the at-risk list.
 
 The right-hand side panel also lists the impacted properties, sortable by
 distance to track, name, or in-cone status. Click a row to fly the map to
@@ -133,7 +137,26 @@ one zoom level that's too tight and the next that's too loose.
   **Comparison** section diff's the impacted sets — newly impacted,
   dropped, unchanged — plus a max/avg track-shift number in miles. The
   same buffer slider and manual flags apply to both advisories so the diff
-  is apples-to-apples.
+  is apples-to-apples. Comparison state is persisted to the saved session
+  and rides the **Share view** URL so reviewers can pick up the diff
+  without re-loading files.
+- **Toast notifications.** Failures (parse errors, export errors, share
+  failures) surface as dismissible toasts in the bottom-right corner with
+  the full stack tucked inside a collapsible `Details` block — no more
+  silently console-logged errors. Successful exports and share copies
+  raise a green confirmation toast.
+- **Keyboard shortcuts.**
+
+  | Action | Shortcut |
+  |---|---|
+  | Export PNG | <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>E</kbd> |
+  | Share view (copy URL) | <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> |
+  | Step the timeline scrub | <kbd>←</kbd> / <kbd>→</kbd> |
+  | Clear scrub or comparison | <kbd>Esc</kbd> |
+  | Toggle the keyboard help overlay | <kbd>?</kbd> |
+
+  Toolbar controls also gain visible focus rings and ARIA landmarks so the
+  tool is usable with keyboard-only navigation and assistive tech.
 
 ## What gets highlighted
 
@@ -157,8 +180,10 @@ The cone test uses `@turf/boolean-point-in-polygon`; the buffer test uses
 
 PNG export composites the already-rendered map tiles, vector canvas, and
 marker icons straight from the DOM — no extra library, and it can't hang.
-Session state and the optional share URL stay client-side; nothing leaves
-the browser.
+PDF export reuses the same canvas and wraps it in a single-page landscape
+document via [jsPDF](https://github.com/parallax/jsPDF) (vendored under
+`vendor/jspdf.umd.min.js`). Session state and the optional share URL stay
+client-side; nothing leaves the browser.
 
 All vendor libraries are self-hosted in the `vendor/` folder and referenced by
 `index.html` with relative paths — no CDN, so the tool works on locked-down
@@ -176,13 +201,14 @@ js/shapefile.js   - NHC shapefile .zip parsing (via shpjs)
 js/csv.js         - CSV parsing + Nominatim fallback geocoding
 js/impact.js      - Cone-containment + buffer-distance impact logic
 js/map.js         - Leaflet map setup, track-point styling, callouts, watch/warning rendering
-js/export.js      - PNG + CSV export helpers
+js/export.js      - PNG + PDF + CSV export helpers
 js/session.js     - Snapshot/restore to localStorage (debounced save)
 js/share.js       - Encode/decode the share URL hash (via LZ-String)
 js/timeline.js    - Interpolated storm position + properties-near helpers
 js/compare.js     - Impacted-set diff and track-shift between two advisories
+js/toast.js       - Dismissible toast notifications (errors + key successes)
 js/app.js         - Wires the UI controls to the modules above
-vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, shpjs, lz-string
+vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, shpjs, lz-string, jsPDF
 scripts/          - Headless Node smoke test
 ```
 
@@ -232,12 +258,12 @@ shapefile tests run on synthesized fixtures regardless.
 
 ## Known limitations
 
-- PDF export not yet implemented (PNG + impacted-CSV are available).
 - Geocoding is rate-limited to 1 req/sec (Nominatim policy). If your CSV
   has many rows missing lat/lon, expect a wait. Pre-geocoding is strongly
   recommended.
 - Session save is per-browser. Open the tool in a different browser or
   private window and you start fresh — use **Share view** to move a
   configured session between users/browsers.
-- Advisory comparison is transient — it's not persisted to the saved
-  session or the share URL. Re-load the comparison files after a refresh.
+- The saved session format bumped to `v3` for comparison persistence;
+  upgrading from an older version drops the previous saved session once
+  (per browser).

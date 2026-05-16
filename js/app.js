@@ -1,4 +1,4 @@
-/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare */
+/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare, HurricaneToast */
 /*
  * App bootstrap — wires the UI controls (file inputs, slider, export button,
  * impacted-property side list) to the parsing/impact/render modules.
@@ -14,6 +14,7 @@
       bufferValue: document.getElementById('bufferValue'),
       labelsToggle: document.getElementById('labelsToggle'),
       exportBtn: document.getElementById('exportBtn'),
+      exportPdfBtn: document.getElementById('exportPdfBtn'),
       exportCsvBtn: document.getElementById('exportCsvBtn'),
       status: document.getElementById('status'),
       stormMeta: document.getElementById('stormMeta'),
@@ -51,6 +52,8 @@
       droppedCount: document.getElementById('droppedCount'),
       unchangedList: document.getElementById('unchangedList'),
       unchangedCount: document.getElementById('unchangedCount'),
+      shortcutHelp: document.getElementById('shortcutHelp'),
+      shortcutHelpClose: document.getElementById('shortcutHelpClose'),
     };
 
     const state = {
@@ -130,6 +133,7 @@
     els.shareBtn.addEventListener('click', async () => {
       if (state.parts.length === 0 && state.rawProperties.length === 0) {
         setStatus('Nothing to share yet — upload a storm or CSV first', 'error');
+        HurricaneToast.show('Nothing to share yet — upload a storm or CSV first', 'warn');
         return;
       }
       try {
@@ -138,12 +142,13 @@
         const fileBits = [];
         if (state.parts.length) fileBits.push((state.parts || []).map(p => p.fileName).join(', '));
         if (state.propertiesSource) fileBits.push(state.propertiesSource);
+        if (state.compareParts.length) fileBits.push((state.compareParts || []).map(p => p.fileName).join(', '));
         setStatus(
           `Copied share URL to clipboard. Recipient must upload: ${fileBits.join(' + ') || '(no files)'}`,
           'success'
         );
+        HurricaneToast.show('Share URL copied to clipboard', 'success');
       } catch (err) {
-        console.error(err);
         // Clipboard API can fail (insecure context, permissions); fall back to
         // setting a prompt-like input so the user can copy manually.
         try {
@@ -151,7 +156,9 @@
           window.prompt('Copy this URL:', url);
           setStatus('Share URL ready (copy from the prompt)', 'success');
         } catch (e2) {
-          setStatus('Share failed: ' + (err && err.message ? err.message : err), 'error');
+          setStatus('Share failed', 'error');
+          HurricaneToast.show('Share failed: ' + (err && err.message ? err.message : err),
+            'error', { detail: err && err.stack });
         }
       }
     });
@@ -186,11 +193,30 @@
       try {
         const filename = await HurricaneExport.exportPng(ctrl);
         setStatus(`Downloaded ${filename}`, 'success');
+        HurricaneToast.show(`Downloaded ${filename}`, 'success');
       } catch (err) {
-        console.error(err);
-        setStatus('Export failed: ' + (err && err.message ? err.message : err), 'error');
+        setStatus('Export failed', 'error');
+        HurricaneToast.show('PNG export failed: ' + (err && err.message ? err.message : err),
+          'error', { detail: err && err.stack });
       } finally {
         els.exportBtn.disabled = !state.storm;
+      }
+    });
+
+    els.exportPdfBtn.addEventListener('click', async () => {
+      if (!state.storm) return;
+      setStatus('Rendering PDF…');
+      els.exportPdfBtn.disabled = true;
+      try {
+        const filename = await HurricaneExport.exportPdf(ctrl);
+        setStatus(`Downloaded ${filename}`, 'success');
+        HurricaneToast.show(`Downloaded ${filename}`, 'success');
+      } catch (err) {
+        setStatus('PDF export failed', 'error');
+        HurricaneToast.show('PDF export failed: ' + (err && err.message ? err.message : err),
+          'error', { detail: err && err.stack });
+      } finally {
+        els.exportPdfBtn.disabled = !state.storm;
       }
     });
 
@@ -199,6 +225,7 @@
         const impacted = state.properties.filter(p => p.impacted);
         if (impacted.length === 0) {
           setStatus('No impacted properties to export', 'error');
+          HurricaneToast.show('No impacted properties to export', 'warn');
           return;
         }
         const csv = buildImpactedCsv(impacted);
@@ -208,15 +235,86 @@
           filename
         );
         setStatus(`Downloaded ${filename} (${impacted.length} rows)`, 'success');
+        HurricaneToast.show(`Downloaded ${filename} (${impacted.length} rows)`, 'success');
       } catch (err) {
-        console.error(err);
-        setStatus('CSV export failed: ' + (err && err.message ? err.message : err), 'error');
+        setStatus('CSV export failed', 'error');
+        HurricaneToast.show('CSV export failed: ' + (err && err.message ? err.message : err),
+          'error', { detail: err && err.stack });
       }
     });
 
     els.sortBy.addEventListener('change', renderImpactedList);
 
     initTrackControls();
+    initKeyboardShortcuts();
+
+    function initKeyboardShortcuts() {
+      els.shortcutHelpClose.addEventListener('click', () => setShortcutHelp(false));
+      els.shortcutHelp.addEventListener('click', e => {
+        if (e.target === els.shortcutHelp) setShortcutHelp(false);
+      });
+
+      document.addEventListener('keydown', e => {
+        const inField = e.target && e.target.matches &&
+          e.target.matches('input,textarea,select,[contenteditable="true"]');
+
+        // Modifier combos work even from inside fields so power users can
+        // export/share without re-focusing the page.
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey
+            && (e.key === 'e' || e.key === 'E')) {
+          e.preventDefault();
+          if (!els.exportBtn.disabled) els.exportBtn.click();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey
+            && (e.key === 'S' || e.key === 's')) {
+          e.preventDefault();
+          if (!els.shareBtn.disabled) els.shareBtn.click();
+          return;
+        }
+
+        if (e.key === 'Escape') {
+          if (!els.shortcutHelp.hidden) {
+            setShortcutHelp(false);
+            return;
+          }
+          if (!els.scrubPanel.hidden) {
+            ctrl.setScrubPosition(null);
+            els.scrubPanel.hidden = true;
+            els.timelineTime.textContent = '';
+            return;
+          }
+          if (!els.comparePanel.hidden) {
+            clearCompare();
+            return;
+          }
+          return;
+        }
+
+        // The remaining shortcuts are single keystrokes — suppress them when
+        // the user is typing into a field.
+        if (inField) return;
+
+        if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+          e.preventDefault();
+          setShortcutHelp(els.shortcutHelp.hidden);
+          return;
+        }
+
+        if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+            && !els.timeline.hidden) {
+          e.preventDefault();
+          if (e.key === 'ArrowLeft') els.timelineSlider.stepDown();
+          else els.timelineSlider.stepUp();
+          els.timelineSlider.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+    }
+
+    function setShortcutHelp(show) {
+      els.shortcutHelp.hidden = !show;
+      if (show) els.shortcutHelpClose.focus();
+    }
 
     // --- Track point default controls ---
     function initTrackControls() {
@@ -273,6 +371,7 @@
         recomputeAndRender();
         ctrl.fit();
         els.exportBtn.disabled = false;
+        els.exportPdfBtn.disabled = false;
         els.exportCsvBtn.disabled = false;
         els.shareBtn.disabled = false;
         await maybeApplyPendingShare();
@@ -289,8 +388,9 @@
           'success'
         );
       } catch (err) {
-        console.error(err);
-        setStatus('Load failed: ' + (err && err.message ? err.message : err), 'error');
+        setStatus('Load failed', 'error');
+        HurricaneToast.show('Load failed: ' + (err && err.message ? err.message : err),
+          'error', { detail: err && err.stack });
       }
     }
 
@@ -311,8 +411,9 @@
         const skipMsg = skipped > 0 ? ` (${skipped} row(s) skipped — no usable lat/lon)` : '';
         setStatus(`Loaded ${properties.length} properties${skipMsg}`, 'success');
       } catch (err) {
-        console.error(err);
-        setStatus('CSV load failed: ' + (err && err.message ? err.message : err), 'error');
+        setStatus('CSV load failed', 'error');
+        HurricaneToast.show('CSV load failed: ' + (err && err.message ? err.message : err),
+          'error', { detail: err && err.stack });
       }
     }
 
@@ -518,15 +619,21 @@
           renderTrackPointList();
           refreshTimelineRange();
           els.exportBtn.disabled = false;
+          els.exportPdfBtn.disabled = false;
           els.exportCsvBtn.disabled = false;
           els.shareBtn.disabled = false;
         }
         recomputeAndRender();
+        if (state.compareStorm) {
+          recomputeCompareImpact();
+          renderComparePanel();
+        }
         if (state.storm || state.rawProperties.length) ctrl.fit();
 
         const bits = [];
         if (state.storm) bits.push(`storm: ${state.storm.stormName}`);
         if (state.rawProperties.length) bits.push(`${state.rawProperties.length} properties`);
+        if (state.compareStorm) bits.push(`comparison: ${state.compareStorm.stormName}`);
         setStatus(`Restored saved session (${bits.join(', ')})`, 'success');
       } finally {
         state.suppressSave = false;
@@ -537,8 +644,8 @@
       if (!state.pendingShare) return;
       state.suppressSave = true;
       try {
-        const done = await HurricaneShare.applyPending(state.pendingShare, state, ctrl);
-        if (!done) return;   // still waiting on the other file
+        const result = await HurricaneShare.applyPending(state.pendingShare, state, ctrl);
+        if (!result.applied) return;   // still waiting on primary/CSV
         // Sync UI controls and surface any filename mismatch as a warning
         els.bufferSlider.value = String(state.bufferMiles);
         els.bufferValue.textContent = `${state.bufferMiles} mi`;
@@ -550,6 +657,10 @@
         els.trackColorDefault.disabled = defaults.colorByCategory;
         renderTrackPointList();
         recomputeAndRender();
+        if (state.compareStorm) {
+          recomputeCompareImpact();
+          renderComparePanel();
+        }
 
         const mm = HurricaneShare.filenameMismatchSummary(state.pendingShare, state);
         const warnings = [];
@@ -562,6 +673,17 @@
         } else {
           setStatus('Shared view applied', 'success');
         }
+
+        // If a comparison file was part of the share but isn't loaded yet,
+        // keep pendingShare alive so a later compare upload finishes the job.
+        if (result.needsCompare && result.needsCompare.length) {
+          HurricaneToast.show(
+            'Comparison advisory still needed: ' + result.needsCompare.join(', '),
+            'info', { timeout: 10000 }
+          );
+          return;
+        }
+
         state.pendingShare = null;
         // Clear the share hash so a follow-up refresh doesn't re-prompt
         if (location.hash) history.replaceState(null, '', location.pathname + location.search);
@@ -580,6 +702,9 @@
         expected.push(payload.fileNames.join(', '));
       }
       if (payload.csvFileName) expected.push(payload.csvFileName);
+      if (payload.compareFileNames && payload.compareFileNames.length) {
+        expected.push(payload.compareFileNames.join(', ') + ' (comparison)');
+      }
       setStatus(
         'Shared view detected. Upload to apply: ' + (expected.join(' + ') || '(no files needed)'),
         'success'
@@ -653,6 +778,7 @@
       if (files.length === 0) return;
       if (!state.storm) {
         setStatus('Load a primary storm first, then upload a comparison advisory', 'error');
+        HurricaneToast.show('Load a primary storm first, then upload a comparison advisory', 'warn');
         return;
       }
       setStatus(`Loading comparison (${files.length} file(s))…`);
@@ -667,14 +793,21 @@
         ctrl.setCompareStorm(state.compareStorm);
         recomputeCompareImpact();
         renderComparePanel();
+        scheduleSave();
+        // If we're mid-share-restore and the share asked for a comparison,
+        // try to finish applying now that the file is loaded.
+        await maybeApplyPendingShare();
         setStatus(
           `Comparison: "${state.compareStorm.stormName}" loaded `
           + `(${state.compareStorm.sources.join(' + ') || 'storm'})`,
           'success'
         );
+        HurricaneToast.show(`Comparison "${state.compareStorm.stormName}" loaded`, 'success');
       } catch (err) {
-        console.error(err);
-        setStatus('Comparison load failed: ' + (err && err.message ? err.message : err), 'error');
+        setStatus('Comparison load failed', 'error');
+        HurricaneToast.show('Comparison load failed: '
+          + (err && err.message ? err.message : err),
+          'error', { detail: err && err.stack });
       }
     }
 
@@ -684,6 +817,7 @@
       state.compareImpacted = [];
       ctrl.setCompareStorm(null);
       els.comparePanel.hidden = true;
+      scheduleSave();
     }
 
     function recomputeCompareImpact() {
