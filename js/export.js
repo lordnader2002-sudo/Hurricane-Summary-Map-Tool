@@ -204,5 +204,5 @@
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
-  window.HurricaneExport = { exportPng };
+  window.HurricaneExport = { exportPng, triggerDownload };
 })();

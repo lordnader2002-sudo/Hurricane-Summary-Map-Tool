@@ -14,6 +14,7 @@
       bufferValue: document.getElementById('bufferValue'),
       labelsToggle: document.getElementById('labelsToggle'),
       exportBtn: document.getElementById('exportBtn'),
+      exportCsvBtn: document.getElementById('exportCsvBtn'),
       status: document.getElementById('status'),
       stormMeta: document.getElementById('stormMeta'),
       categoryLegend: document.getElementById('categoryLegend'),
@@ -81,6 +82,26 @@
       }
     });
 
+    els.exportCsvBtn.addEventListener('click', () => {
+      try {
+        const impacted = state.properties.filter(p => p.impacted);
+        if (impacted.length === 0) {
+          setStatus('No impacted properties to export', 'error');
+          return;
+        }
+        const csv = buildImpactedCsv(impacted);
+        const filename = buildExportFilename(state.storm, 'impacted', 'csv');
+        HurricaneExport.triggerDownload(
+          new Blob([csv], { type: 'text/csv;charset=utf-8;' }),
+          filename
+        );
+        setStatus(`Downloaded ${filename} (${impacted.length} rows)`, 'success');
+      } catch (err) {
+        console.error(err);
+        setStatus('CSV export failed: ' + (err && err.message ? err.message : err), 'error');
+      }
+    });
+
     els.sortBy.addEventListener('change', renderImpactedList);
 
     initTrackControls();
@@ -138,6 +159,7 @@
         recomputeAndRender();
         ctrl.fit();
         els.exportBtn.disabled = false;
+        els.exportCsvBtn.disabled = false;
 
         const bits = [
           `${storm.trackPoints.features.length} track points`,
@@ -345,6 +367,44 @@
     function setStatus(msg, kind) {
       els.status.textContent = msg || '';
       els.status.className = 'status' + (kind ? ' ' + kind : '');
+    }
+
+    function csvField(v) {
+      if (v == null) return '';
+      const s = String(v);
+      return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+
+    function buildImpactedCsv(impacted) {
+      const headers = [
+        'property_id', 'name', 'address', 'postal_code',
+        'lat', 'lon', 'dist_miles', 'in_cone', 'manually_flagged',
+      ];
+      const lines = [headers.join(',')];
+      impacted.forEach(p => {
+        lines.push([
+          p.id,
+          p.name,
+          p.address || '',
+          p.postalCode || '',
+          p.lat,
+          p.lon,
+          p.distMiles != null ? p.distMiles.toFixed(2) : '',
+          p.inCone ? 'true' : 'false',
+          state.manualOverride.has(p.id) ? 'true' : 'false',
+        ].map(csvField).join(','));
+      });
+      return lines.join('\n') + '\n';
+    }
+
+    function buildExportFilename(storm, suffix, ext) {
+      const name = storm && storm.stormName
+        ? storm.stormName.replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
+        : 'hurricane';
+      const date = (storm && storm.advisoryDate)
+        ? storm.advisoryDate.replace(/-/g, '')
+        : new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      return `${name || 'hurricane'}_${date}_${suffix}.${ext}`;
     }
   });
 })();
