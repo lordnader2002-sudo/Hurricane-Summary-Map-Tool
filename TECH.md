@@ -1,6 +1,6 @@
 # Hurricane Summary Map Tool — Tech One-Pager
 
-Static-file web app — no backend, no build step. Vanilla JS modules wired
+Static-file web app, no backend, no build step. Vanilla JS modules wired
 together in `index.html`; each library does one job and the seams between
 them are thin.
 
