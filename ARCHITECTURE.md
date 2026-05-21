@@ -1,10 +1,5 @@
 # Hurricane Summary Map Tool — Architecture & Integration Overview
 
-> Written as a technical handoff so a partner system (e.g. a common
-> operating picture / situational-awareness platform) can understand
-> what this tool does, how it's built, and what's involved in
-> embedding or interoperating with it.
-
 ## 1. What the tool does
 
 It takes the GIS files NOAA's National Hurricane Center (NHC) publishes
