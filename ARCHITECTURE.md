@@ -4,7 +4,7 @@
 
 It takes the GIS files NOAA's National Hurricane Center (NHC) publishes
 for an active storm and a list of locations the user cares about
-(stores, depots, customer sites — anything with an address or lat/lon),
+(stores, depots, customer sites, anything with an address or lat/lon),
 and produces a single decision-ready map: storm cone, forecast track,
 coastal watches/warnings, and every location highlighted as either
 *at risk* (inside the cone or within an adjustable distance buffer of
