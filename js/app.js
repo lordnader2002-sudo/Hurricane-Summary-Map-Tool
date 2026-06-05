@@ -1,4 +1,4 @@
-/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare, HurricaneToast */
+/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare, HurricaneToast, HurricaneMeasure */
 /*
  * App bootstrap — wires the UI controls (file inputs, slider, export button,
  * impacted-property side list) to the parsing/impact/render modules.
@@ -88,6 +88,8 @@
       scheduleSave();
     });
     ctrl.setOnCalloutChange(scheduleSave);
+
+    const measure = HurricaneMeasure.init(ctrl.getMap());
 
     function scheduleSave() {
       if (state.suppressSave) return;
@@ -281,6 +283,10 @@
         if (e.key === 'Escape') {
           if (!els.shortcutHelp.hidden) {
             setShortcutHelp(false);
+            return;
+          }
+          if (measure.isActive()) {
+            measure.finish();
             return;
           }
           if (!els.scrubPanel.hidden) {

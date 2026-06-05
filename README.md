@@ -147,6 +147,13 @@ one zoom level that's too tight and the next that's too loose.
   the full stack tucked inside a collapsible `Details` block — no more
   silently console-logged errors. Successful exports and share copies
   raise a green confirmation toast.
+- **Distance measure.** Right-click anywhere on the map and pick
+  **Measure from here** — then left-click to drop waypoints. Each
+  point shows the cumulative miles from the start, and the line is
+  drawn in dashed orange so it doesn't get confused with the storm
+  track. Double-click or press <kbd>Esc</kbd> to finish; the
+  measurement stays on the map for reference. Right-click again to
+  start a new one or clear it.
 - **Keyboard shortcuts.**
 
   | Action | Shortcut |
@@ -154,7 +161,8 @@ one zoom level that's too tight and the next that's too loose.
   | Export PNG | <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>E</kbd> |
   | Share view (copy URL) | <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> |
   | Step the timeline scrub | <kbd>←</kbd> / <kbd>→</kbd> |
-  | Clear scrub or comparison | <kbd>Esc</kbd> |
+  | Measure distance on the map | <kbd>Right-click</kbd> |
+  | Finish measurement / clear scrub or comparison | <kbd>Esc</kbd> |
   | Toggle the keyboard help overlay | <kbd>?</kbd> |
 
   Toolbar controls also gain visible focus rings and ARIA landmarks so the
@@ -208,6 +216,7 @@ js/session.js     - Snapshot/restore to localStorage (debounced save)
 js/share.js       - Encode/decode the share URL hash (via LZ-String)
 js/timeline.js    - Interpolated storm position + properties-near helpers
 js/compare.js     - Impacted-set diff and track-shift between two advisories
+js/measure.js     - Right-click distance measure tool
 js/toast.js       - Dismissible toast notifications (errors + key successes)
 js/app.js         - Wires the UI controls to the modules above
 vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, shpjs, lz-string, jsPDF
