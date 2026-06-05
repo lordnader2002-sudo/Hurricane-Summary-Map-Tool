@@ -90,6 +90,16 @@
     ctrl.setOnCalloutChange(scheduleSave);
 
     const measure = HurricaneMeasure.init(ctrl.getMap());
+    measure.setImpactLookup(latlon => {
+      // Run a single-point impact check against the current storm + buffer.
+      if (!state.storm) return null;
+      const out = ImpactEngine.computeImpact(
+        [{ id: '__pin__', lat: latlon.lat, lon: latlon.lon }],
+        state.storm,
+        state.bufferMiles
+      );
+      return out[0] || null;
+    });
 
     function scheduleSave() {
       if (state.suppressSave) return;
@@ -448,6 +458,7 @@
       });
       ctrl.setProperties(state.properties);
       measure.setSnapTargets(state.properties);
+      measure.refreshPin();
       renderImpactedList();
       // Keep the comparison view in sync with the same buffer/overrides
       recomputeCompareImpact();

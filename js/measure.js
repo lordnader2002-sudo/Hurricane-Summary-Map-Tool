@@ -71,12 +71,16 @@
     let active = false;
     let openPopup = null;
     let snapTargets = [];  // [{ lat, lon, id, name }]
+    let impactLookup = null;  // (latlng) => { distMiles, inCone } | null
+    let pin = null;           // { marker, tooltip } currently dropped on the map
 
     function setSnapTargets(props) {
       snapTargets = Array.isArray(props) ? props.filter(p =>
         typeof p.lat === 'number' && typeof p.lon === 'number'
       ) : [];
     }
+
+    function setImpactLookup(fn) { impactLookup = typeof fn === 'function' ? fn : null; }
 
     function snapClick(latlng) {
       if (snapTargets.length === 0) return { latlng, snapped: null };
@@ -169,7 +173,54 @@
       if (polyline) { layer.removeLayer(polyline); polyline = null; }
       markers.forEach(m => layer.removeLayer(m));
       markers = [];
+      removePin();
       closePopup();
+    }
+
+    function dropPin(latlng) {
+      removePin();
+      const marker = L.circleMarker(latlng, {
+        radius: 7,
+        color: '#1f4e79',
+        weight: 3,
+        fillColor: '#ffffff',
+        fillOpacity: 1,
+      }).addTo(layer);
+      const tip = buildPinTooltip(latlng);
+      marker.bindTooltip(tip, {
+        permanent: true,
+        direction: 'top',
+        offset: [0, -10],
+        className: 'measure-label measure-pin-label',
+      });
+      pin = marker;
+    }
+
+    function buildPinTooltip(latlng) {
+      const coords = `${latlng.lat.toFixed(3)}, ${latlng.lng.toFixed(3)}`;
+      if (!impactLookup) return coords;
+      const res = impactLookup({ lat: latlng.lat, lon: latlng.lng });
+      if (!res) return coords;
+      const bits = [coords];
+      if (res.distMiles != null) {
+        bits.push(`${formatMiles(res.distMiles)} from track`);
+      }
+      if (res.inCone) bits.push('IN CONE');
+      else if (res.impacted) bits.push('in buffer');
+      else bits.push('outside');
+      return bits.join(' · ');
+    }
+
+    function removePin() {
+      if (!pin) return;
+      layer.removeLayer(pin);
+      pin = null;
+    }
+
+    function refreshPin() {
+      if (!pin) return;
+      const ll = pin.getLatLng();
+      pin.setTooltipContent(buildPinTooltip(ll));
     }
 
     function closePopup() {
@@ -206,6 +257,10 @@
           hasLine ? 'New measurement from here' : 'Measure from here',
           () => start(latlng)
         ));
+        container.appendChild(makeButton(
+          pin ? 'Move pin here' : 'Drop pin here',
+          () => dropPin(latlng)
+        ));
       } else {
         container.appendChild(makeButton('Finish here', () => {
           addPoint(latlng);
@@ -214,6 +269,9 @@
       }
       if (hasLine || active) {
         container.appendChild(makeButton('Clear measurement', clear));
+      }
+      if (pin && !active) {
+        container.appendChild(makeButton('Remove pin', removePin));
       }
 
       const popup = L.popup({
@@ -255,7 +313,11 @@
       finish,
       isActive: () => active,
       hasMeasurement: () => points.length >= 2,
+      hasPin: () => !!pin,
+      removePin,
+      refreshPin,
       setSnapTargets,
+      setImpactLookup,
     };
   }
 

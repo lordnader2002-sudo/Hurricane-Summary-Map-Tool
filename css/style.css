@@ -779,6 +779,10 @@ details > summary:focus-visible {
   white-space: nowrap;
 }
 .leaflet-tooltip.measure-label::before { display: none; }
+.leaflet-tooltip.measure-pin-label {
+  border-color: var(--header-bg);
+  color: var(--header-bg);
+}
 .leaflet-popup.measure-popup .leaflet-popup-content {
   margin: 8px 10px;
 }
