@@ -760,3 +760,42 @@ details > summary:focus-visible {
   cursor: pointer;
 }
 .shortcut-close:hover { background: #163a5c; }
+
+/* Distance-measure tool (right-click on the map) */
+.measure-cursor,
+.measure-cursor .leaflet-interactive {
+  cursor: crosshair !important;
+}
+.leaflet-tooltip.measure-label {
+  background: #ffffff;
+  color: #1d2733;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+.leaflet-tooltip.measure-label::before { display: none; }
+.leaflet-popup.measure-popup .leaflet-popup-content {
+  margin: 8px 10px;
+}
+.measure-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+}
+.measure-actions-total {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  padding-bottom: 4px;
+  border-bottom: 1px dashed var(--panel-border);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.measure-actions .btn {
+  justify-content: center;
+}
