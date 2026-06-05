@@ -150,6 +150,14 @@
     </aside>
   </main>
 
+  <div id="selectionBar" class="selection-bar" role="region"
+       aria-label="Bulk selection actions" hidden>
+    <span class="selection-bar-count" id="selectionBarCount">0 selected</span>
+    <button class="btn small primary" id="selectionFlagBtn">Flag as impacted</button>
+    <button class="btn small" id="selectionUnflagBtn">Clear flags</button>
+    <button class="btn small" id="selectionClearBtn">Deselect</button>
+  </div>
+
   <div id="shortcutHelp" role="dialog" aria-modal="true"
        aria-labelledby="shortcutHelpTitle" hidden>
     <div class="shortcut-panel">

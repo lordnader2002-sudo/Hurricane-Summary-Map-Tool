@@ -761,6 +761,38 @@ details > summary:focus-visible {
 }
 .shortcut-close:hover { background: #163a5c; }
 
+/* Floating bulk-selection bar shown when shift-click selects properties */
+.selection-bar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1900;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--header-bg);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+}
+.selection-bar[hidden] { display: none; }
+.selection-bar-count { font-weight: 600; }
+.selection-bar .btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.selection-bar .btn.primary:hover { background: #d96d22; border-color: #d96d22; }
+.selection-bar .btn:not(.primary) {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.25);
+  color: #fff;
+}
+.selection-bar .btn:not(.primary):hover { background: rgba(255,255,255,0.22); }
+
 /* Distance-measure tool (right-click on the map) */
 .measure-cursor,
 .measure-cursor .leaflet-interactive {

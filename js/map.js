@@ -147,6 +147,7 @@
       track: L.layerGroup().addTo(map),
       trackPoints: L.layerGroup().addTo(map),
       properties: L.layerGroup().addTo(map),
+      selection: L.layerGroup().addTo(map),
       callouts: L.layerGroup().addTo(map),
       scrub: L.layerGroup().addTo(map),
     };
@@ -188,6 +189,17 @@
       onTrackStyleChange: () => {},
       onPropertyToggle: () => {},
       onCalloutChange: () => {},
+      onSelectionChange: () => {},
+    };
+
+    // Selection state for bulk manual-override flow.
+    const selectedIds = new Set();
+    const SELECTION_STYLE = {
+      radius: 11,
+      color: '#ed7d31',
+      weight: 3,
+      fillOpacity: 0,
+      interactive: false,
     };
 
     // ---- Storm layers ----------------------------------------------------
@@ -425,10 +437,42 @@
         );
         m.bindPopup(() => buildPropertyEditor(p));
         m.propertyData = p;
+        // Shift-click toggles selection; plain click opens the editor popup.
+        m.on('click', e => {
+          if (e.originalEvent && e.originalEvent.shiftKey) {
+            L.DomEvent.stop(e.originalEvent);
+            m.closePopup();
+            toggleSelected(p.id);
+          }
+        });
         m.addTo(layers.properties);
       });
 
+      renderSelection();
       renderCallouts();
+    }
+
+    function toggleSelected(id) {
+      if (selectedIds.has(id)) selectedIds.delete(id);
+      else selectedIds.add(id);
+      renderSelection();
+      callbacks.onSelectionChange(Array.from(selectedIds));
+    }
+
+    function clearSelection() {
+      if (selectedIds.size === 0) return;
+      selectedIds.clear();
+      renderSelection();
+      callbacks.onSelectionChange([]);
+    }
+
+    function renderSelection() {
+      layers.selection.clearLayers();
+      if (selectedIds.size === 0) return;
+      currentProperties.forEach(p => {
+        if (!selectedIds.has(p.id)) return;
+        L.circleMarker([p.lat, p.lon], SELECTION_STYLE).addTo(layers.selection);
+      });
     }
 
     function buildPropertyEditor(p) {
@@ -794,6 +838,9 @@
       setOnTrackStyleChange: fn => { callbacks.onTrackStyleChange = fn || (() => {}); },
       setOnPropertyToggle: fn => { callbacks.onPropertyToggle = fn || (() => {}); },
       setOnCalloutChange: fn => { callbacks.onCalloutChange = fn || (() => {}); },
+      setOnSelectionChange: fn => { callbacks.onSelectionChange = fn || (() => {}); },
+      getSelectedIds: () => Array.from(selectedIds),
+      clearSelection,
       getMap: () => map,
       getLayers: () => layers,
       getCurrent: () => ({ storm: currentStorm, properties: currentProperties }),

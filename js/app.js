@@ -54,6 +54,11 @@
       unchangedCount: document.getElementById('unchangedCount'),
       shortcutHelp: document.getElementById('shortcutHelp'),
       shortcutHelpClose: document.getElementById('shortcutHelpClose'),
+      selectionBar: document.getElementById('selectionBar'),
+      selectionBarCount: document.getElementById('selectionBarCount'),
+      selectionFlagBtn: document.getElementById('selectionFlagBtn'),
+      selectionUnflagBtn: document.getElementById('selectionUnflagBtn'),
+      selectionClearBtn: document.getElementById('selectionClearBtn'),
     };
 
     const state = {
@@ -88,6 +93,15 @@
       scheduleSave();
     });
     ctrl.setOnCalloutChange(scheduleSave);
+    ctrl.setOnSelectionChange(ids => {
+      if (!ids.length) {
+        els.selectionBar.hidden = true;
+        return;
+      }
+      els.selectionBar.hidden = false;
+      els.selectionBarCount.textContent =
+        ids.length + ' selected';
+    });
 
     const measure = HurricaneMeasure.init(ctrl.getMap());
     measure.setImpactLookup(latlon => {
@@ -262,6 +276,27 @@
 
     els.sortBy.addEventListener('change', renderImpactedList);
 
+    els.selectionFlagBtn.addEventListener('click', () => bulkSetImpacted(true));
+    els.selectionUnflagBtn.addEventListener('click', () => bulkSetImpacted(false));
+    els.selectionClearBtn.addEventListener('click', () => ctrl.clearSelection());
+
+    function bulkSetImpacted(value) {
+      const ids = ctrl.getSelectedIds();
+      if (ids.length === 0) return;
+      ids.forEach(id => {
+        const p = state.properties.find(pp => pp.id === id);
+        if (p && value === p.algoImpacted) state.manualOverride.delete(id);
+        else state.manualOverride.set(id, value);
+      });
+      recomputeAndRender();
+      scheduleSave();
+      HurricaneToast.show(
+        `${ids.length} property${ids.length === 1 ? '' : 'ies'} ${value ? 'flagged' : 'unflagged'}`,
+        'success'
+      );
+      ctrl.clearSelection();
+    }
+
     initTrackControls();
     initKeyboardShortcuts();
 
@@ -297,6 +332,10 @@
           }
           if (measure.isActive()) {
             measure.finish();
+            return;
+          }
+          if (ctrl.getSelectedIds().length > 0) {
+            ctrl.clearSelection();
             return;
           }
           if (!els.scrubPanel.hidden) {
