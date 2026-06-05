@@ -432,6 +432,7 @@
       if (state.rawProperties.length === 0) {
         state.properties = [];
         ctrl.setProperties([]);
+        measure.setSnapTargets([]);
         renderImpactedList();
         recomputeCompareImpact();
         renderComparePanel();
@@ -446,6 +447,7 @@
         if (state.manualOverride.has(p.id)) p.impacted = state.manualOverride.get(p.id);
       });
       ctrl.setProperties(state.properties);
+      measure.setSnapTargets(state.properties);
       renderImpactedList();
       // Keep the comparison view in sync with the same buffer/overrides
       recomputeCompareImpact();

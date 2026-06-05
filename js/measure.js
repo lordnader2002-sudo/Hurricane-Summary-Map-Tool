@@ -61,6 +61,8 @@
     return COMPASS[Math.round(normalized / 22.5) % 16];
   }
 
+  const SNAP_PIXELS = 15;
+
   function init(map) {
     const layer = L.layerGroup().addTo(map);
     let polyline = null;
@@ -68,6 +70,38 @@
     let points = [];     // L.LatLng[]
     let active = false;
     let openPopup = null;
+    let snapTargets = [];  // [{ lat, lon, id, name }]
+
+    function setSnapTargets(props) {
+      snapTargets = Array.isArray(props) ? props.filter(p =>
+        typeof p.lat === 'number' && typeof p.lon === 'number'
+      ) : [];
+    }
+
+    function snapClick(latlng) {
+      if (snapTargets.length === 0) return { latlng, snapped: null };
+      const clickPx = map.latLngToContainerPoint(latlng);
+      let best = null;
+      let bestDist = SNAP_PIXELS;
+      snapTargets.forEach(t => {
+        const px = map.latLngToContainerPoint([t.lat, t.lon]);
+        const d = clickPx.distanceTo(px);
+        if (d < bestDist) { bestDist = d; best = t; }
+      });
+      if (!best) return { latlng, snapped: null };
+      return { latlng: L.latLng(best.lat, best.lon), snapped: best };
+    }
+
+    function flashSnap(latlng) {
+      const ring = L.circleMarker(latlng, {
+        radius: 12,
+        color: '#ed7d31',
+        weight: 3,
+        fillOpacity: 0,
+        interactive: false,
+      }).addTo(layer);
+      setTimeout(() => layer.removeLayer(ring), 600);
+    }
 
     function totalMiles() {
       let total = 0;
@@ -207,7 +241,9 @@
       // those are UI interactions, not waypoints.
       const t = e.originalEvent && e.originalEvent.target;
       if (t && t.closest && t.closest('.leaflet-popup, .leaflet-control')) return;
-      addPoint(e.latlng);
+      const { latlng, snapped } = snapClick(e.latlng);
+      if (snapped) flashSnap(latlng);
+      addPoint(latlng);
     });
 
     map.on('dblclick', () => {
@@ -219,6 +255,7 @@
       finish,
       isActive: () => active,
       hasMeasurement: () => points.length >= 2,
+      setSnapTargets,
     };
   }
 
