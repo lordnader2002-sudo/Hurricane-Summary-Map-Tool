@@ -1,4 +1,4 @@
-/* global LZString, HurricaneSession, HurricaneKMZ */
+/* global LZString, HurricaneSession, HurricaneKMZ, HurricaneBookmarks */
 /*
  * Shareable URL state.
  *
@@ -22,7 +22,7 @@
 (function () {
   'use strict';
 
-  const VERSION = 3;
+  const VERSION = 4;
   const HASH_PARAM = 's';
 
   function encode(state, ctrl) {
@@ -44,6 +44,14 @@
       trackDefaults: ctrl.getTrackDefaults(),
       callouts: ctrl.getCalloutState(),
       manualOverride: Array.from((state.manualOverride || new Map()).entries()),
+      // Drawn zones piggyback on the existing share apply path via an
+      // extras shim from app.js (HurricaneDraw.setZones).
+      drawnZones: typeof state.getDrawnZonesForShare === 'function'
+        ? state.getDrawnZonesForShare() : (state.drawnZonesForShare || []),
+      // Sender's bookmarks. Receiver merges them into their own collection
+      // via HurricaneBookmarks.importMany.
+      bookmarks: typeof HurricaneBookmarks !== 'undefined'
+        ? HurricaneBookmarks.list() : [],
     };
     const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(payload));
     const base = location.origin + location.pathname + location.search;
@@ -60,10 +68,10 @@
       const json = LZString.decompressFromEncodedURIComponent(encoded);
       if (!json) return null;
       const payload = JSON.parse(json);
-      // Accept v3 (embedded data) and v2 (filenames only — legacy receiver
-      // flow re-uploads files). v1 is ignored — comparison support didn't
-      // exist yet so the payload shape is too divergent to replay safely.
-      if (!payload || (payload.v !== 3 && payload.v !== 2)) return null;
+      // Accept v4 (current — adds bookmarks), v3 (embedded data), and v2
+      // (filenames only — legacy receiver flow re-uploads files). v1 is
+      // ignored — comparison support didn't exist yet.
+      if (!payload || (payload.v !== 4 && payload.v !== 3 && payload.v !== 2)) return null;
       return payload;
     } catch (err) {
       console.warn('Share decode failed:', err && err.message ? err.message : err);
@@ -78,10 +86,10 @@
   // Return shape:
   //   { applied: false }                       waiting on primary/CSV upload (v2 only)
   //   { applied: true, needsCompare: [...] }   ready; comparison may still be missing (v2 only)
-  async function applyPending(payload, state, ctrl) {
+  async function applyPending(payload, state, ctrl, opts) {
     if (!payload) return { applied: true, needsCompare: [] };
 
-    const embedded = payload.v === 3;
+    const embedded = payload.v === 3 || payload.v === 4;
 
     if (embedded) {
       // Hydrate state directly from the payload — no upload required.
@@ -108,7 +116,7 @@
     // Feed everything through the session restore path so the merge/setStorm
     // logic stays in one place.
     const snap = {
-      version: 3,
+      version: 4,
       storm: {
         parts: state.parts.slice(),
         fileNames: payload.fileNames || (state.parts || []).map(p => p.fileName || ''),
@@ -127,11 +135,12 @@
       trackDefaults: payload.trackDefaults || ctrl.getTrackDefaults(),
       callouts: payload.callouts || { positions: {}, textOverrides: {} },
       manualOverride: payload.manualOverride || [],
+      drawnZones: Array.isArray(payload.drawnZones) ? payload.drawnZones : [],
     };
 
-    await HurricaneSession.applySnapshot(snap, state, ctrl);
+    await HurricaneSession.applySnapshot(snap, state, ctrl, opts && opts.extras);
 
-    // v3 shares are always complete. v2 may still need a comparison upload.
+    // v3/v4 shares are always complete. v2 may still need a comparison upload.
     if (embedded) return { applied: true, needsCompare: [] };
     const needCompare = (payload.compareFileNames || []).length > 0;
     const haveCompare = (state.compareParts || []).length > 0;

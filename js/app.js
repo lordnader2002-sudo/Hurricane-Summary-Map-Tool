@@ -1,4 +1,4 @@
-/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare, HurricaneToast, HurricaneMeasure */
+/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare, HurricaneToast, HurricaneMeasure, HurricaneBookmarks, HurricaneDraw, HurricaneUndo, turf */
 /*
  * App bootstrap — wires the UI controls (file inputs, slider, export button,
  * impacted-property side list) to the parsing/impact/render modules.
@@ -54,6 +54,15 @@
       unchangedCount: document.getElementById('unchangedCount'),
       shortcutHelp: document.getElementById('shortcutHelp'),
       shortcutHelpClose: document.getElementById('shortcutHelpClose'),
+      selectionBar: document.getElementById('selectionBar'),
+      selectionBarCount: document.getElementById('selectionBarCount'),
+      selectionFlagBtn: document.getElementById('selectionFlagBtn'),
+      selectionUnflagBtn: document.getElementById('selectionUnflagBtn'),
+      selectionClearBtn: document.getElementById('selectionClearBtn'),
+      bookmarksCount: document.getElementById('bookmarksCount'),
+      bookmarkName: document.getElementById('bookmarkName'),
+      bookmarkAddBtn: document.getElementById('bookmarkAddBtn'),
+      bookmarksList: document.getElementById('bookmarksList'),
     };
 
     const state = {
@@ -79,24 +88,129 @@
     const ctrl = HurricaneMap.init('map');
     ctrl.setOnTrackStyleChange(() => { renderTrackPointList(); scheduleSave(); });
     ctrl.setOnPropertyToggle((id, value) => {
+      const had = state.manualOverride.has(id);
+      const prev = had ? state.manualOverride.get(id) : null;
       const p = state.properties.find(pp => pp.id === id);
       // If the new value matches what the algorithm said, drop the override
       // rather than persisting a redundant entry.
       if (p && value === p.algoImpacted) state.manualOverride.delete(id);
       else state.manualOverride.set(id, value);
+      HurricaneUndo.push({
+        label: 'manual flag for ' + (p ? p.name : id),
+        undo: () => {
+          if (had) state.manualOverride.set(id, prev);
+          else state.manualOverride.delete(id);
+          recomputeAndRender();
+          scheduleSave();
+        },
+        redo: () => {
+          if (p && value === p.algoImpacted) state.manualOverride.delete(id);
+          else state.manualOverride.set(id, value);
+          recomputeAndRender();
+          scheduleSave();
+        },
+      });
       recomputeAndRender();
       scheduleSave();
     });
     ctrl.setOnCalloutChange(scheduleSave);
+    ctrl.setOnCalloutCommit(({ id, kind, prev, next }) => {
+      if (state.suppressSave) return;
+      HurricaneUndo.push({
+        label: kind === 'drag' ? 'callout drag' : 'callout text',
+        undo: () => {
+          if (kind === 'drag') ctrl.setCalloutPosition(id, prev.position);
+          else ctrl.setCalloutText(id, prev.textOverride || []);
+          scheduleSave();
+        },
+        redo: () => {
+          if (kind === 'drag') ctrl.setCalloutPosition(id, next.position);
+          else ctrl.setCalloutText(id, next.textOverride || []);
+          scheduleSave();
+        },
+      });
+    });
+    ctrl.setOnSelectionChange(ids => {
+      if (!ids.length) {
+        els.selectionBar.hidden = true;
+        return;
+      }
+      els.selectionBar.hidden = false;
+      els.selectionBarCount.textContent =
+        ids.length + ' selected';
+    });
 
     const measure = HurricaneMeasure.init(ctrl.getMap());
+    const draw = HurricaneDraw.init(ctrl.getMap());
+    draw.setOnZonesChange((next, prev) => {
+      recomputeAndRender();
+      scheduleSave();
+      // Only push an undo entry for user-initiated mutations — restoration
+      // from a session or share suppresses the save flag and we use that
+      // as the signal to skip undo bookkeeping too.
+      if (state.suppressSave) return;
+      const label = diffLabel(prev || [], next);
+      if (!label) return;
+      const prevSnap = prev || [];
+      const nextSnap = next;
+      HurricaneUndo.push({
+        label,
+        undo: () => { draw.setZones(prevSnap); },
+        redo: () => { draw.setZones(nextSnap); },
+      });
+    });
+
+    function diffLabel(prev, next) {
+      if (prev.length < next.length) return 'add ' + (next[next.length - 1].name || 'zone');
+      if (prev.length > next.length) {
+        const gone = prev.find(p => !next.find(n => n.id === p.id));
+        return 'delete ' + (gone ? gone.name : 'zone');
+      }
+      // Same length — name change?
+      for (let i = 0; i < prev.length; i++) {
+        if (prev[i].name !== next[i].name) return 'rename to ' + next[i].name;
+      }
+      return null;
+    }
+    measure.setExtraActionsProvider((latlng, ctx) => {
+      const actions = [];
+      if (!ctx.active && !draw.isDrawing()) {
+        actions.push({ label: 'Draw zone here', onClick: () => draw.beginDraw(latlng) });
+      } else if (draw.isDrawing()) {
+        actions.push({ label: 'Finish zone', onClick: () => draw.commitDraft() });
+        actions.push({ label: 'Cancel zone', onClick: () => draw.cancelDraw() });
+      }
+      if (draw.hasZones()) {
+        actions.push({ label: 'Clear all zones', onClick: () => draw.setZones([]) });
+      }
+      return actions;
+    });
+    measure.setImpactLookup(latlon => {
+      // Run a single-point impact check against the current storm + buffer.
+      if (!state.storm) return null;
+      const out = ImpactEngine.computeImpact(
+        [{ id: '__pin__', lat: latlon.lat, lon: latlon.lon }],
+        state.storm,
+        state.bufferMiles
+      );
+      return out[0] || null;
+    });
+
+    function captureSnapshot() {
+      return HurricaneSession.captureSnapshot(state, ctrl, {
+        drawnZones: draw.getZones(),
+      });
+    }
+    function snapshotExtras() {
+      return { setDrawnZones: zones => draw.setZones(zones) };
+    }
 
     function scheduleSave() {
       if (state.suppressSave) return;
       // Only persist after the user has uploaded at least one of storm/props,
       // so an opened-then-closed empty tab doesn't overwrite a real session.
       if (state.parts.length === 0 && state.rawProperties.length === 0) return;
-      HurricaneSession.save(HurricaneSession.captureSnapshot(state, ctrl));
+      HurricaneSession.save(captureSnapshot());
     }
 
     // --- Event wiring ---
@@ -138,6 +252,9 @@
         HurricaneToast.show('Nothing to share yet — upload a storm or CSV first', 'warn');
         return;
       }
+      // Inject a temporary helper so share.encode can read the drawn zones
+      // without share.js needing a direct reference to HurricaneDraw.
+      state.getDrawnZonesForShare = () => draw.getZones();
       try {
         const url = HurricaneShare.encode(state, ctrl);
         await navigator.clipboard.writeText(url);
@@ -252,6 +369,106 @@
 
     els.sortBy.addEventListener('change', renderImpactedList);
 
+    els.selectionFlagBtn.addEventListener('click', () => bulkSetImpacted(true));
+    els.selectionUnflagBtn.addEventListener('click', () => bulkSetImpacted(false));
+    els.selectionClearBtn.addEventListener('click', () => ctrl.clearSelection());
+
+    els.bookmarkAddBtn.addEventListener('click', () => addBookmarkFromCurrent());
+    els.bookmarkName.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); addBookmarkFromCurrent(); }
+    });
+    renderBookmarks();
+
+    function addBookmarkFromCurrent() {
+      const name = els.bookmarkName.value.trim();
+      if (!name) {
+        HurricaneToast.show('Give the bookmark a name first', 'warn');
+        return;
+      }
+      if (state.parts.length === 0 && state.rawProperties.length === 0) {
+        HurricaneToast.show('Nothing to bookmark yet', 'warn');
+        return;
+      }
+      const snapshot = captureSnapshot();
+      HurricaneBookmarks.add(name, snapshot);
+      els.bookmarkName.value = '';
+      renderBookmarks();
+      HurricaneToast.show(`Saved "${name}"`, 'success');
+    }
+
+    function renderBookmarks() {
+      const items = HurricaneBookmarks.list();
+      els.bookmarksCount.textContent = String(items.length);
+      els.bookmarksList.innerHTML = '';
+      if (items.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'empty';
+        li.textContent = 'No bookmarks yet';
+        els.bookmarksList.appendChild(li);
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      items.slice().reverse().forEach(b => {
+        const li = document.createElement('li');
+        const name = document.createElement('span');
+        name.className = 'bookmark-name';
+        name.textContent = b.name;
+        name.title = 'Click to restore this view';
+        name.addEventListener('click', () => restoreBookmark(b));
+        li.appendChild(name);
+        const meta = document.createElement('span');
+        meta.className = 'bookmark-meta';
+        meta.textContent = b.savedAt ? timeAgo(new Date(b.savedAt)) : '';
+        li.appendChild(meta);
+        const rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'bookmark-remove';
+        rm.setAttribute('aria-label', `Remove bookmark ${b.name}`);
+        rm.textContent = '×';
+        rm.addEventListener('click', () => {
+          HurricaneBookmarks.remove(b.name);
+          renderBookmarks();
+        });
+        li.appendChild(rm);
+        frag.appendChild(li);
+      });
+      els.bookmarksList.appendChild(frag);
+    }
+
+    async function restoreBookmark(b) {
+      if (!b || !b.snapshot) return;
+      await restoreFromSnapshot(b.snapshot);
+      HurricaneToast.show(`Restored "${b.name}"`, 'success');
+    }
+
+    function findZoneAt(zones, lat, lon) {
+      if (!zones || zones.length === 0) return null;
+      const pt = turf.point([lon, lat]);
+      for (const z of zones) {
+        try {
+          if (turf.booleanPointInPolygon(pt, z.geometry)) return z;
+        } catch (_) { /* skip malformed geometry */ }
+      }
+      return null;
+    }
+
+    function bulkSetImpacted(value) {
+      const ids = ctrl.getSelectedIds();
+      if (ids.length === 0) return;
+      ids.forEach(id => {
+        const p = state.properties.find(pp => pp.id === id);
+        if (p && value === p.algoImpacted) state.manualOverride.delete(id);
+        else state.manualOverride.set(id, value);
+      });
+      recomputeAndRender();
+      scheduleSave();
+      HurricaneToast.show(
+        `${ids.length} property${ids.length === 1 ? '' : 'ies'} ${value ? 'flagged' : 'unflagged'}`,
+        'success'
+      );
+      ctrl.clearSelection();
+    }
+
     initTrackControls();
     initKeyboardShortcuts();
 
@@ -279,6 +496,18 @@
           if (!els.shareBtn.disabled) els.shareBtn.click();
           return;
         }
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey
+            && (e.key === 'z' || e.key === 'Z')) {
+          e.preventDefault();
+          HurricaneUndo.undo();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey
+            && (e.key === 'z' || e.key === 'Z')) {
+          e.preventDefault();
+          HurricaneUndo.redo();
+          return;
+        }
 
         if (e.key === 'Escape') {
           if (!els.shortcutHelp.hidden) {
@@ -287,6 +516,10 @@
           }
           if (measure.isActive()) {
             measure.finish();
+            return;
+          }
+          if (ctrl.getSelectedIds().length > 0) {
+            ctrl.clearSelection();
             return;
           }
           if (!els.scrubPanel.hidden) {
@@ -432,6 +665,7 @@
       if (state.rawProperties.length === 0) {
         state.properties = [];
         ctrl.setProperties([]);
+        measure.setSnapTargets([]);
         renderImpactedList();
         recomputeCompareImpact();
         renderComparePanel();
@@ -440,12 +674,20 @@
       state.properties = ImpactEngine.computeImpact(
         state.rawProperties, state.storm, state.bufferMiles
       );
-      // Preserve the algorithm's verdict and apply any manual overrides on top.
+      // Annotate zone membership (any zone -> impacted), then apply manual
+      // overrides on top of the combined algo+zone verdict.
+      const zones = draw.getZones();
       state.properties.forEach(p => {
+        const inZone = findZoneAt(zones, p.lat, p.lon);
+        p.inZone = !!inZone;
+        p.zoneName = inZone ? inZone.name : '';
+        if (inZone) p.impacted = true;
         p.algoImpacted = p.impacted;
         if (state.manualOverride.has(p.id)) p.impacted = state.manualOverride.get(p.id);
       });
       ctrl.setProperties(state.properties);
+      measure.setSnapTargets(state.properties);
+      measure.refreshPin();
       renderImpactedList();
       // Keep the comparison view in sync with the same buffer/overrides
       recomputeCompareImpact();
@@ -611,7 +853,7 @@
       state.suppressSave = true;
       try {
         setStatus('Restoring saved session…');
-        await HurricaneSession.applySnapshot(snap, state, ctrl);
+        await HurricaneSession.applySnapshot(snap, state, ctrl, snapshotExtras());
 
         // Sync the UI controls that aren't auto-driven by ctrl
         els.bufferSlider.value = String(state.bufferMiles);
@@ -655,7 +897,9 @@
       if (!state.pendingShare) return;
       state.suppressSave = true;
       try {
-        const result = await HurricaneShare.applyPending(state.pendingShare, state, ctrl);
+        const result = await HurricaneShare.applyPending(
+          state.pendingShare, state, ctrl, { extras: snapshotExtras() }
+        );
         if (!result.applied) return;   // still waiting on primary/CSV
         // Sync UI controls and surface any filename mismatch as a warning
         els.bufferSlider.value = String(state.bufferMiles);
@@ -731,6 +975,7 @@
     })();
 
     async function applyEmbeddedShare() {
+      const payload = state.pendingShare;
       await maybeApplyPendingShare();
       // Refresh the UI surfaces that handleFilesUpload/handleCsvUpload would
       // normally render after a fresh upload.
@@ -747,6 +992,17 @@
       if (state.storm || state.rawProperties.length) {
         els.shareBtn.disabled = false;
         ctrl.fit();
+      }
+      // Merge sender's bookmarks into the local list.
+      if (payload && Array.isArray(payload.bookmarks) && payload.bookmarks.length) {
+        const result = HurricaneBookmarks.importMany(payload.bookmarks);
+        renderBookmarks();
+        if (result && result.added) {
+          HurricaneToast.show(
+            `Imported ${result.added} bookmark${result.added === 1 ? '' : 's'} from the share`,
+            'info'
+          );
+        }
       }
     }
 
@@ -791,7 +1047,7 @@
     function buildImpactedCsv(impacted) {
       const headers = [
         'property_id', 'name', 'address', 'postal_code',
-        'lat', 'lon', 'dist_miles', 'in_cone', 'manually_flagged',
+        'lat', 'lon', 'dist_miles', 'in_cone', 'zone_name', 'manually_flagged',
       ];
       const lines = [headers.join(',')];
       impacted.forEach(p => {
@@ -804,6 +1060,7 @@
           p.lon,
           p.distMiles != null ? p.distMiles.toFixed(2) : '',
           p.inCone ? 'true' : 'false',
+          p.zoneName || '',
           state.manualOverride.has(p.id) ? 'true' : 'false',
         ].map(csvField).join(','));
       });
