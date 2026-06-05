@@ -49,6 +49,18 @@
     );
   }
 
+  // 16-point compass — turf.bearing returns -180..180 from true north.
+  const COMPASS = ['N','NNE','NE','ENE','E','ESE','SE','SSE',
+                   'S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  function bearingLabel(a, b) {
+    const deg = turf.bearing(
+      turf.point([a.lng, a.lat]),
+      turf.point([b.lng, b.lat])
+    );
+    const normalized = (deg + 360) % 360;
+    return COMPASS[Math.round(normalized / 22.5) % 16];
+  }
+
   function init(map) {
     const layer = L.layerGroup().addTo(map);
     let polyline = null;
@@ -77,7 +89,9 @@
       points.forEach((p, i) => {
         if (i > 0) cum += segmentMiles(points[i - 1], p);
         const m = L.circleMarker(p, WAYPOINT_STYLE);
-        const label = i === 0 ? 'Start' : formatMiles(cum);
+        const label = i === 0
+          ? 'Start'
+          : `${formatMiles(cum)} · ${bearingLabel(points[i - 1], p)}`;
         m.bindTooltip(label, {
           permanent: true,
           direction: 'top',
