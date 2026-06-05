@@ -147,22 +147,45 @@ one zoom level that's too tight and the next that's too loose.
   the full stack tucked inside a collapsible `Details` block — no more
   silently console-logged errors. Successful exports and share copies
   raise a green confirmation toast.
-- **Distance measure.** Right-click anywhere on the map and pick
-  **Measure from here** — then left-click to drop waypoints. Each
-  point shows the cumulative miles from the start, and the line is
-  drawn in dashed orange so it doesn't get confused with the storm
-  track. Double-click or press <kbd>Esc</kbd> to finish; the
-  measurement stays on the map for reference. Right-click again to
-  start a new one or clear it.
+- **Map tools** (all reached by right-clicking the map):
+  - **Measure from here** — left-click to drop waypoints; each
+    shows cumulative miles + compass bearing from the previous
+    point. Snaps to nearby property dots so you can measure
+    store-to-store distances exactly. Double-click or <kbd>Esc</kbd>
+    to finish; right-click → "Clear measurement" to remove.
+  - **Drop pin here** — places a single ephemeral marker with a
+    permanent tooltip showing "X mi from track / in cone / in
+    buffer / outside." Refreshes when the buffer slider or storm
+    advisory changes.
+  - **Draw zone here** — left-click each polygon vertex,
+    double-click to close. The closed zone gets a name (editable
+    via the popup); every property inside any zone is automatically
+    flagged impacted and the impacted CSV gains a `zone_name`
+    column. Zones persist to the saved session and travel in the
+    share URL.
+- **Bulk manual-override**. Shift-click property dots to select
+  multiple at once; a floating bar shows "N selected" with **Flag
+  as impacted**, **Clear flags**, and **Deselect** actions.
+- **Bookmarks**. Save the current view (storm, properties,
+  callouts, slider, drawn zones) under a name. Bookmarks live in
+  the side panel, persist to localStorage per browser, and ride
+  the Share view URL so a recipient sees the sender's saved
+  views too.
+- **Undo / redo**. <kbd>Ctrl/⌘+Z</kbd> reverses the last callout
+  edit, callout drag, manual-flag toggle, or drawn-zone change;
+  <kbd>Ctrl/⌘+Shift+Z</kbd> reapplies it. Bounded ring buffer of
+  20 actions.
 - **Keyboard shortcuts.**
 
   | Action | Shortcut |
   |---|---|
   | Export PNG | <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>E</kbd> |
   | Share view (copy URL) | <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> |
+  | Undo / redo | <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Z</kbd> / <kbd>+ Shift + Z</kbd> |
   | Step the timeline scrub | <kbd>←</kbd> / <kbd>→</kbd> |
-  | Measure distance on the map | <kbd>Right-click</kbd> |
-  | Finish measurement / clear scrub or comparison | <kbd>Esc</kbd> |
+  | Map tools (measure / pin / draw zone) | <kbd>Right-click</kbd> |
+  | Bulk-select properties | <kbd>Shift</kbd> + click |
+  | Finish action / clear scrub or comparison | <kbd>Esc</kbd> |
   | Toggle the keyboard help overlay | <kbd>?</kbd> |
 
   Toolbar controls also gain visible focus rings and ARIA landmarks so the
@@ -216,7 +239,10 @@ js/session.js     - Snapshot/restore to localStorage (debounced save)
 js/share.js       - Encode/decode the share URL hash (via LZ-String)
 js/timeline.js    - Interpolated storm position + properties-near helpers
 js/compare.js     - Impacted-set diff and track-shift between two advisories
-js/measure.js     - Right-click distance measure tool
+js/measure.js     - Right-click distance measure + drop-pin tools
+js/draw.js        - User-drawn risk-zone polygons (impact-affecting)
+js/bookmarks.js   - Named saved views (per-browser; embedded in share URL)
+js/undo.js        - Bounded undo/redo stack for callouts/flags/zones
 js/toast.js       - Dismissible toast notifications (errors + key successes)
 js/app.js         - Wires the UI controls to the modules above
 vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, shpjs, lz-string, jsPDF

@@ -189,6 +189,7 @@
       onTrackStyleChange: () => {},
       onPropertyToggle: () => {},
       onCalloutChange: () => {},
+      onCalloutCommit: () => {},
       onSelectionChange: () => {},
     };
 
@@ -568,6 +569,13 @@
         const descriptor = { id, lines, target, position };
         calloutData.push(descriptor);
 
+        let dragPrev = null;
+        marker.on('dragstart', () => {
+          dragPrev = {
+            position: { lat: descriptor.position.lat, lng: descriptor.position.lng },
+            lines: descriptor.lines.slice(),
+          };
+        });
         marker.on('drag', () => {
           const ll = marker.getLatLng();
           leader.setLatLngs([ll, targetLL]);
@@ -575,8 +583,38 @@
           calloutPositions[id] = descriptor.position;
           callbacks.onCalloutChange();
         });
+        marker.on('dragend', () => {
+          if (!dragPrev) return;
+          const newState = {
+            position: { lat: descriptor.position.lat, lng: descriptor.position.lng },
+            lines: descriptor.lines.slice(),
+          };
+          callbacks.onCalloutCommit({ id, kind: 'drag', prev: dragPrev, next: newState });
+          dragPrev = null;
+        });
 
         marker.bindPopup(() => buildCalloutEditor(id, defaultLines, descriptor, marker));
+        let editPrev = null;
+        marker.on('popupopen', () => {
+          editPrev = {
+            position: { lat: descriptor.position.lat, lng: descriptor.position.lng },
+            lines: descriptor.lines.slice(),
+            textOverride: calloutTextOverrides[id] ? calloutTextOverrides[id].slice() : null,
+          };
+        });
+        marker.on('popupclose', () => {
+          if (!editPrev) return;
+          const cur = {
+            position: { lat: descriptor.position.lat, lng: descriptor.position.lng },
+            lines: descriptor.lines.slice(),
+            textOverride: calloutTextOverrides[id] ? calloutTextOverrides[id].slice() : null,
+          };
+          const changed = JSON.stringify(editPrev.lines) !== JSON.stringify(cur.lines);
+          if (changed) {
+            callbacks.onCalloutCommit({ id, kind: 'text', prev: editPrev, next: cur });
+          }
+          editPrev = null;
+        });
       });
     }
 
@@ -838,6 +876,16 @@
       setOnTrackStyleChange: fn => { callbacks.onTrackStyleChange = fn || (() => {}); },
       setOnPropertyToggle: fn => { callbacks.onPropertyToggle = fn || (() => {}); },
       setOnCalloutChange: fn => { callbacks.onCalloutChange = fn || (() => {}); },
+      setOnCalloutCommit: fn => { callbacks.onCalloutCommit = fn || (() => {}); },
+      setCalloutPosition: (id, pos) => {
+        calloutPositions[id] = { lat: pos.lat, lng: pos.lng };
+        renderCallouts();
+      },
+      setCalloutText: (id, lines) => {
+        if (!lines || lines.length === 0) delete calloutTextOverrides[id];
+        else calloutTextOverrides[id] = lines.slice();
+        renderCallouts();
+      },
       setOnSelectionChange: fn => { callbacks.onSelectionChange = fn || (() => {}); },
       getSelectedIds: () => Array.from(selectedIds),
       clearSelection,

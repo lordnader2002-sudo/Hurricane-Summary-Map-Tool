@@ -58,8 +58,12 @@
     let nextId = 1;
     let onZonesChange = () => {};
 
+    let lastBroadcast = [];
     function emitChange() {
-      try { onZonesChange(getZones()); } catch (_) { /* ignore */ }
+      const snapshot = getZones();
+      const prev = lastBroadcast;
+      lastBroadcast = snapshot;
+      try { onZonesChange(snapshot, prev); } catch (_) { /* ignore */ }
     }
 
     function getZones() {

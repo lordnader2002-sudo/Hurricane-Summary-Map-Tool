@@ -1,4 +1,4 @@
-/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare, HurricaneToast, HurricaneMeasure, HurricaneBookmarks, HurricaneDraw, turf */
+/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare, HurricaneToast, HurricaneMeasure, HurricaneBookmarks, HurricaneDraw, HurricaneUndo, turf */
 /*
  * App bootstrap — wires the UI controls (file inputs, slider, export button,
  * impacted-property side list) to the parsing/impact/render modules.
@@ -88,15 +88,48 @@
     const ctrl = HurricaneMap.init('map');
     ctrl.setOnTrackStyleChange(() => { renderTrackPointList(); scheduleSave(); });
     ctrl.setOnPropertyToggle((id, value) => {
+      const had = state.manualOverride.has(id);
+      const prev = had ? state.manualOverride.get(id) : null;
       const p = state.properties.find(pp => pp.id === id);
       // If the new value matches what the algorithm said, drop the override
       // rather than persisting a redundant entry.
       if (p && value === p.algoImpacted) state.manualOverride.delete(id);
       else state.manualOverride.set(id, value);
+      HurricaneUndo.push({
+        label: 'manual flag for ' + (p ? p.name : id),
+        undo: () => {
+          if (had) state.manualOverride.set(id, prev);
+          else state.manualOverride.delete(id);
+          recomputeAndRender();
+          scheduleSave();
+        },
+        redo: () => {
+          if (p && value === p.algoImpacted) state.manualOverride.delete(id);
+          else state.manualOverride.set(id, value);
+          recomputeAndRender();
+          scheduleSave();
+        },
+      });
       recomputeAndRender();
       scheduleSave();
     });
     ctrl.setOnCalloutChange(scheduleSave);
+    ctrl.setOnCalloutCommit(({ id, kind, prev, next }) => {
+      if (state.suppressSave) return;
+      HurricaneUndo.push({
+        label: kind === 'drag' ? 'callout drag' : 'callout text',
+        undo: () => {
+          if (kind === 'drag') ctrl.setCalloutPosition(id, prev.position);
+          else ctrl.setCalloutText(id, prev.textOverride || []);
+          scheduleSave();
+        },
+        redo: () => {
+          if (kind === 'drag') ctrl.setCalloutPosition(id, next.position);
+          else ctrl.setCalloutText(id, next.textOverride || []);
+          scheduleSave();
+        },
+      });
+    });
     ctrl.setOnSelectionChange(ids => {
       if (!ids.length) {
         els.selectionBar.hidden = true;
@@ -109,10 +142,36 @@
 
     const measure = HurricaneMeasure.init(ctrl.getMap());
     const draw = HurricaneDraw.init(ctrl.getMap());
-    draw.setOnZonesChange(() => {
+    draw.setOnZonesChange((next, prev) => {
       recomputeAndRender();
       scheduleSave();
+      // Only push an undo entry for user-initiated mutations — restoration
+      // from a session or share suppresses the save flag and we use that
+      // as the signal to skip undo bookkeeping too.
+      if (state.suppressSave) return;
+      const label = diffLabel(prev || [], next);
+      if (!label) return;
+      const prevSnap = prev || [];
+      const nextSnap = next;
+      HurricaneUndo.push({
+        label,
+        undo: () => { draw.setZones(prevSnap); },
+        redo: () => { draw.setZones(nextSnap); },
+      });
     });
+
+    function diffLabel(prev, next) {
+      if (prev.length < next.length) return 'add ' + (next[next.length - 1].name || 'zone');
+      if (prev.length > next.length) {
+        const gone = prev.find(p => !next.find(n => n.id === p.id));
+        return 'delete ' + (gone ? gone.name : 'zone');
+      }
+      // Same length — name change?
+      for (let i = 0; i < prev.length; i++) {
+        if (prev[i].name !== next[i].name) return 'rename to ' + next[i].name;
+      }
+      return null;
+    }
     measure.setExtraActionsProvider((latlng, ctx) => {
       const actions = [];
       if (!ctx.active && !draw.isDrawing()) {
@@ -435,6 +494,18 @@
             && (e.key === 'S' || e.key === 's')) {
           e.preventDefault();
           if (!els.shareBtn.disabled) els.shareBtn.click();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey
+            && (e.key === 'z' || e.key === 'Z')) {
+          e.preventDefault();
+          HurricaneUndo.undo();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey
+            && (e.key === 'z' || e.key === 'Z')) {
+          e.preventDefault();
+          HurricaneUndo.redo();
           return;
         }
 
