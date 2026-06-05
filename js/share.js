@@ -1,4 +1,4 @@
-/* global LZString, HurricaneSession, HurricaneKMZ */
+/* global LZString, HurricaneSession, HurricaneKMZ, HurricaneBookmarks */
 /*
  * Shareable URL state.
  *
@@ -22,7 +22,7 @@
 (function () {
   'use strict';
 
-  const VERSION = 3;
+  const VERSION = 4;
   const HASH_PARAM = 's';
 
   function encode(state, ctrl) {
@@ -44,6 +44,10 @@
       trackDefaults: ctrl.getTrackDefaults(),
       callouts: ctrl.getCalloutState(),
       manualOverride: Array.from((state.manualOverride || new Map()).entries()),
+      // Sender's bookmarks. Receiver merges them into their own collection
+      // via HurricaneBookmarks.importMany.
+      bookmarks: typeof HurricaneBookmarks !== 'undefined'
+        ? HurricaneBookmarks.list() : [],
     };
     const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(payload));
     const base = location.origin + location.pathname + location.search;
@@ -60,10 +64,10 @@
       const json = LZString.decompressFromEncodedURIComponent(encoded);
       if (!json) return null;
       const payload = JSON.parse(json);
-      // Accept v3 (embedded data) and v2 (filenames only — legacy receiver
-      // flow re-uploads files). v1 is ignored — comparison support didn't
-      // exist yet so the payload shape is too divergent to replay safely.
-      if (!payload || (payload.v !== 3 && payload.v !== 2)) return null;
+      // Accept v4 (current — adds bookmarks), v3 (embedded data), and v2
+      // (filenames only — legacy receiver flow re-uploads files). v1 is
+      // ignored — comparison support didn't exist yet.
+      if (!payload || (payload.v !== 4 && payload.v !== 3 && payload.v !== 2)) return null;
       return payload;
     } catch (err) {
       console.warn('Share decode failed:', err && err.message ? err.message : err);
@@ -81,7 +85,7 @@
   async function applyPending(payload, state, ctrl) {
     if (!payload) return { applied: true, needsCompare: [] };
 
-    const embedded = payload.v === 3;
+    const embedded = payload.v === 3 || payload.v === 4;
 
     if (embedded) {
       // Hydrate state directly from the payload — no upload required.

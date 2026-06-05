@@ -107,6 +107,16 @@
         </details>
       </section>
 
+      <section class="panel-section" id="bookmarksPanel">
+        <h3>Bookmarks <span class="count" id="bookmarksCount">0</span></h3>
+        <p class="hint">Save the current view (storm, properties, callouts, slider, zones) under a name. Stored locally and shared via the URL.</p>
+        <div class="bookmark-add">
+          <input type="text" id="bookmarkName" placeholder="View name…" />
+          <button class="btn small primary" id="bookmarkAddBtn">Save view</button>
+        </div>
+        <ol class="bookmarks-list" id="bookmarksList"></ol>
+      </section>
+
       <section class="panel-section" id="comparePanel" hidden>
         <h3>Comparison</h3>
         <div class="compare-meta" id="compareMeta"></div>
@@ -196,6 +206,7 @@
   <script src="js/timeline.js"></script>
   <script src="js/compare.js"></script>
   <script src="js/measure.js"></script>
+  <script src="js/bookmarks.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

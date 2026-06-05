@@ -1,4 +1,4 @@
-/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare, HurricaneToast, HurricaneMeasure */
+/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare, HurricaneToast, HurricaneMeasure, HurricaneBookmarks */
 /*
  * App bootstrap — wires the UI controls (file inputs, slider, export button,
  * impacted-property side list) to the parsing/impact/render modules.
@@ -59,6 +59,10 @@
       selectionFlagBtn: document.getElementById('selectionFlagBtn'),
       selectionUnflagBtn: document.getElementById('selectionUnflagBtn'),
       selectionClearBtn: document.getElementById('selectionClearBtn'),
+      bookmarksCount: document.getElementById('bookmarksCount'),
+      bookmarkName: document.getElementById('bookmarkName'),
+      bookmarkAddBtn: document.getElementById('bookmarkAddBtn'),
+      bookmarksList: document.getElementById('bookmarksList'),
     };
 
     const state = {
@@ -279,6 +283,74 @@
     els.selectionFlagBtn.addEventListener('click', () => bulkSetImpacted(true));
     els.selectionUnflagBtn.addEventListener('click', () => bulkSetImpacted(false));
     els.selectionClearBtn.addEventListener('click', () => ctrl.clearSelection());
+
+    els.bookmarkAddBtn.addEventListener('click', () => addBookmarkFromCurrent());
+    els.bookmarkName.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); addBookmarkFromCurrent(); }
+    });
+    renderBookmarks();
+
+    function addBookmarkFromCurrent() {
+      const name = els.bookmarkName.value.trim();
+      if (!name) {
+        HurricaneToast.show('Give the bookmark a name first', 'warn');
+        return;
+      }
+      if (state.parts.length === 0 && state.rawProperties.length === 0) {
+        HurricaneToast.show('Nothing to bookmark yet', 'warn');
+        return;
+      }
+      const snapshot = HurricaneSession.captureSnapshot(state, ctrl);
+      HurricaneBookmarks.add(name, snapshot);
+      els.bookmarkName.value = '';
+      renderBookmarks();
+      HurricaneToast.show(`Saved "${name}"`, 'success');
+    }
+
+    function renderBookmarks() {
+      const items = HurricaneBookmarks.list();
+      els.bookmarksCount.textContent = String(items.length);
+      els.bookmarksList.innerHTML = '';
+      if (items.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'empty';
+        li.textContent = 'No bookmarks yet';
+        els.bookmarksList.appendChild(li);
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      items.slice().reverse().forEach(b => {
+        const li = document.createElement('li');
+        const name = document.createElement('span');
+        name.className = 'bookmark-name';
+        name.textContent = b.name;
+        name.title = 'Click to restore this view';
+        name.addEventListener('click', () => restoreBookmark(b));
+        li.appendChild(name);
+        const meta = document.createElement('span');
+        meta.className = 'bookmark-meta';
+        meta.textContent = b.savedAt ? timeAgo(new Date(b.savedAt)) : '';
+        li.appendChild(meta);
+        const rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'bookmark-remove';
+        rm.setAttribute('aria-label', `Remove bookmark ${b.name}`);
+        rm.textContent = '×';
+        rm.addEventListener('click', () => {
+          HurricaneBookmarks.remove(b.name);
+          renderBookmarks();
+        });
+        li.appendChild(rm);
+        frag.appendChild(li);
+      });
+      els.bookmarksList.appendChild(frag);
+    }
+
+    async function restoreBookmark(b) {
+      if (!b || !b.snapshot) return;
+      await restoreFromSnapshot(b.snapshot);
+      HurricaneToast.show(`Restored "${b.name}"`, 'success');
+    }
 
     function bulkSetImpacted(value) {
       const ids = ctrl.getSelectedIds();
@@ -783,6 +855,7 @@
     })();
 
     async function applyEmbeddedShare() {
+      const payload = state.pendingShare;
       await maybeApplyPendingShare();
       // Refresh the UI surfaces that handleFilesUpload/handleCsvUpload would
       // normally render after a fresh upload.
@@ -799,6 +872,17 @@
       if (state.storm || state.rawProperties.length) {
         els.shareBtn.disabled = false;
         ctrl.fit();
+      }
+      // Merge sender's bookmarks into the local list.
+      if (payload && Array.isArray(payload.bookmarks) && payload.bookmarks.length) {
+        const result = HurricaneBookmarks.importMany(payload.bookmarks);
+        renderBookmarks();
+        if (result && result.added) {
+          HurricaneToast.show(
+            `Imported ${result.added} bookmark${result.added === 1 ? '' : 's'} from the share`,
+            'info'
+          );
+        }
       }
     }
 

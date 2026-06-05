@@ -761,6 +761,67 @@ details > summary:focus-visible {
 }
 .shortcut-close:hover { background: #163a5c; }
 
+/* Side-panel bookmark list */
+.bookmark-add {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+.bookmark-add input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 3px;
+  font-size: 12px;
+}
+.bookmarks-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+}
+.bookmarks-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  margin-bottom: 4px;
+}
+.bookmarks-list .bookmark-name {
+  flex: 1;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bookmarks-list .bookmark-name:hover { color: var(--accent); }
+.bookmarks-list .bookmark-meta {
+  color: var(--muted);
+  font-size: 11px;
+}
+.bookmarks-list .bookmark-remove {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  line-height: 1;
+}
+.bookmarks-list .bookmark-remove:hover { color: var(--impacted); }
+.bookmarks-list .empty {
+  border: 0;
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+  padding: 8px;
+}
+
 /* Floating bulk-selection bar shown when shift-click selects properties */
 .selection-bar {
   position: fixed;
