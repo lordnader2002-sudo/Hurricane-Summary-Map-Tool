@@ -73,6 +73,7 @@
     let snapTargets = [];  // [{ lat, lon, id, name }]
     let impactLookup = null;  // (latlng) => { distMiles, inCone } | null
     let pin = null;           // { marker, tooltip } currently dropped on the map
+    let extraActionsProvider = null;  // (latlng, { active, hasLine, hasPin }) => [{label, onClick}]
 
     function setSnapTargets(props) {
       snapTargets = Array.isArray(props) ? props.filter(p =>
@@ -274,6 +275,15 @@
         container.appendChild(makeButton('Remove pin', removePin));
       }
 
+      // Allow other modules (drawn zones) to inject extra actions into the
+      // same right-click menu so the user has a single map-tools entry point.
+      if (extraActionsProvider) {
+        const extras = extraActionsProvider(latlng, {
+          active, hasLine, hasPin: !!pin,
+        }) || [];
+        extras.forEach(a => container.appendChild(makeButton(a.label, a.onClick)));
+      }
+
       const popup = L.popup({
         closeButton: false,
         className: 'measure-popup',
@@ -318,6 +328,7 @@
       refreshPin,
       setSnapTargets,
       setImpactLookup,
+      setExtraActionsProvider: fn => { extraActionsProvider = typeof fn === 'function' ? fn : null; },
     };
   }
 

@@ -21,14 +21,15 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'hurricane-tool-session-v3';
+  const STORAGE_KEY = 'hurricane-tool-session-v4';
   const SAVE_DEBOUNCE_MS = 400;
 
   let saveTimer = null;
 
-  function captureSnapshot(state, ctrl) {
+  function captureSnapshot(state, ctrl, extras) {
+    extras = extras || {};
     return {
-      version: 3,
+      version: 4,
       savedAt: Date.now(),
       storm: {
         parts: state.parts || [],
@@ -48,10 +49,11 @@
       trackDefaults: ctrl.getTrackDefaults(),
       callouts: ctrl.getCalloutState(),
       manualOverride: Array.from((state.manualOverride || new Map()).entries()),
+      drawnZones: extras.drawnZones || [],
     };
   }
 
-  async function applySnapshot(snap, state, ctrl) {
+  async function applySnapshot(snap, state, ctrl, extras) {
     if (!snap) return;
 
     // Storm
@@ -89,6 +91,12 @@
     if (snap.trackDefaults) ctrl.setTrackDefaults(snap.trackDefaults);
     if (snap.trackPointStyles) ctrl.applyTrackPointStyles(snap.trackPointStyles);
     if (snap.callouts) ctrl.applyCalloutState(snap.callouts);
+
+    // Drawn zones are owned by HurricaneDraw, not the map controller — let
+    // the caller install them since session.js doesn't import draw.js.
+    if (extras && typeof extras.setDrawnZones === 'function') {
+      extras.setDrawnZones(Array.isArray(snap.drawnZones) ? snap.drawnZones : []);
+    }
   }
 
   function save(snapshot) {
@@ -114,7 +122,7 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
       const snap = JSON.parse(raw);
-      if (!snap || snap.version !== 3) return null;
+      if (!snap || snap.version !== 4) return null;
       return snap;
     } catch (err) {
       console.warn('Session load failed:', err && err.message ? err.message : err);

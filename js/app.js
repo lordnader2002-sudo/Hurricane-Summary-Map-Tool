@@ -1,4 +1,4 @@
-/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare, HurricaneToast, HurricaneMeasure, HurricaneBookmarks */
+/* global HurricaneKMZ, PropertiesCSV, ImpactEngine, HurricaneMap, HurricaneExport, HurricaneSession, HurricaneShare, HurricaneTimeline, HurricaneCompare, HurricaneToast, HurricaneMeasure, HurricaneBookmarks, HurricaneDraw, turf */
 /*
  * App bootstrap — wires the UI controls (file inputs, slider, export button,
  * impacted-property side list) to the parsing/impact/render modules.
@@ -108,6 +108,24 @@
     });
 
     const measure = HurricaneMeasure.init(ctrl.getMap());
+    const draw = HurricaneDraw.init(ctrl.getMap());
+    draw.setOnZonesChange(() => {
+      recomputeAndRender();
+      scheduleSave();
+    });
+    measure.setExtraActionsProvider((latlng, ctx) => {
+      const actions = [];
+      if (!ctx.active && !draw.isDrawing()) {
+        actions.push({ label: 'Draw zone here', onClick: () => draw.beginDraw(latlng) });
+      } else if (draw.isDrawing()) {
+        actions.push({ label: 'Finish zone', onClick: () => draw.commitDraft() });
+        actions.push({ label: 'Cancel zone', onClick: () => draw.cancelDraw() });
+      }
+      if (draw.hasZones()) {
+        actions.push({ label: 'Clear all zones', onClick: () => draw.setZones([]) });
+      }
+      return actions;
+    });
     measure.setImpactLookup(latlon => {
       // Run a single-point impact check against the current storm + buffer.
       if (!state.storm) return null;
@@ -119,12 +137,21 @@
       return out[0] || null;
     });
 
+    function captureSnapshot() {
+      return HurricaneSession.captureSnapshot(state, ctrl, {
+        drawnZones: draw.getZones(),
+      });
+    }
+    function snapshotExtras() {
+      return { setDrawnZones: zones => draw.setZones(zones) };
+    }
+
     function scheduleSave() {
       if (state.suppressSave) return;
       // Only persist after the user has uploaded at least one of storm/props,
       // so an opened-then-closed empty tab doesn't overwrite a real session.
       if (state.parts.length === 0 && state.rawProperties.length === 0) return;
-      HurricaneSession.save(HurricaneSession.captureSnapshot(state, ctrl));
+      HurricaneSession.save(captureSnapshot());
     }
 
     // --- Event wiring ---
@@ -166,6 +193,9 @@
         HurricaneToast.show('Nothing to share yet — upload a storm or CSV first', 'warn');
         return;
       }
+      // Inject a temporary helper so share.encode can read the drawn zones
+      // without share.js needing a direct reference to HurricaneDraw.
+      state.getDrawnZonesForShare = () => draw.getZones();
       try {
         const url = HurricaneShare.encode(state, ctrl);
         await navigator.clipboard.writeText(url);
@@ -300,7 +330,7 @@
         HurricaneToast.show('Nothing to bookmark yet', 'warn');
         return;
       }
-      const snapshot = HurricaneSession.captureSnapshot(state, ctrl);
+      const snapshot = captureSnapshot();
       HurricaneBookmarks.add(name, snapshot);
       els.bookmarkName.value = '';
       renderBookmarks();
@@ -350,6 +380,17 @@
       if (!b || !b.snapshot) return;
       await restoreFromSnapshot(b.snapshot);
       HurricaneToast.show(`Restored "${b.name}"`, 'success');
+    }
+
+    function findZoneAt(zones, lat, lon) {
+      if (!zones || zones.length === 0) return null;
+      const pt = turf.point([lon, lat]);
+      for (const z of zones) {
+        try {
+          if (turf.booleanPointInPolygon(pt, z.geometry)) return z;
+        } catch (_) { /* skip malformed geometry */ }
+      }
+      return null;
     }
 
     function bulkSetImpacted(value) {
@@ -562,8 +603,14 @@
       state.properties = ImpactEngine.computeImpact(
         state.rawProperties, state.storm, state.bufferMiles
       );
-      // Preserve the algorithm's verdict and apply any manual overrides on top.
+      // Annotate zone membership (any zone -> impacted), then apply manual
+      // overrides on top of the combined algo+zone verdict.
+      const zones = draw.getZones();
       state.properties.forEach(p => {
+        const inZone = findZoneAt(zones, p.lat, p.lon);
+        p.inZone = !!inZone;
+        p.zoneName = inZone ? inZone.name : '';
+        if (inZone) p.impacted = true;
         p.algoImpacted = p.impacted;
         if (state.manualOverride.has(p.id)) p.impacted = state.manualOverride.get(p.id);
       });
@@ -735,7 +782,7 @@
       state.suppressSave = true;
       try {
         setStatus('Restoring saved session…');
-        await HurricaneSession.applySnapshot(snap, state, ctrl);
+        await HurricaneSession.applySnapshot(snap, state, ctrl, snapshotExtras());
 
         // Sync the UI controls that aren't auto-driven by ctrl
         els.bufferSlider.value = String(state.bufferMiles);
@@ -779,7 +826,9 @@
       if (!state.pendingShare) return;
       state.suppressSave = true;
       try {
-        const result = await HurricaneShare.applyPending(state.pendingShare, state, ctrl);
+        const result = await HurricaneShare.applyPending(
+          state.pendingShare, state, ctrl, { extras: snapshotExtras() }
+        );
         if (!result.applied) return;   // still waiting on primary/CSV
         // Sync UI controls and surface any filename mismatch as a warning
         els.bufferSlider.value = String(state.bufferMiles);
@@ -927,7 +976,7 @@
     function buildImpactedCsv(impacted) {
       const headers = [
         'property_id', 'name', 'address', 'postal_code',
-        'lat', 'lon', 'dist_miles', 'in_cone', 'manually_flagged',
+        'lat', 'lon', 'dist_miles', 'in_cone', 'zone_name', 'manually_flagged',
       ];
       const lines = [headers.join(',')];
       impacted.forEach(p => {
@@ -940,6 +989,7 @@
           p.lon,
           p.distMiles != null ? p.distMiles.toFixed(2) : '',
           p.inCone ? 'true' : 'false',
+          p.zoneName || '',
           state.manualOverride.has(p.id) ? 'true' : 'false',
         ].map(csvField).join(','));
       });
