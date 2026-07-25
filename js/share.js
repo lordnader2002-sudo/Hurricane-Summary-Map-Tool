@@ -43,6 +43,8 @@
       trackPointStyles: ctrl.getTrackPointStyles(),
       trackDefaults: ctrl.getTrackDefaults(),
       callouts: ctrl.getCalloutState(),
+      trackLabels: ctrl.getTrackLabelState(),
+      labelScale: ctrl.getLabelScale(),
       manualOverride: Array.from((state.manualOverride || new Map()).entries()),
       // Drawn zones piggyback on the existing share apply path via an
       // extras shim from app.js (HurricaneDraw.setZones).
@@ -134,6 +136,8 @@
       trackPointStyles: payload.trackPointStyles || {},
       trackDefaults: payload.trackDefaults || ctrl.getTrackDefaults(),
       callouts: payload.callouts || { positions: {}, textOverrides: {} },
+      trackLabels: payload.trackLabels || { positions: {} },
+      labelScale: typeof payload.labelScale === 'number' ? payload.labelScale : 1,
       manualOverride: payload.manualOverride || [],
       drawnZones: Array.isArray(payload.drawnZones) ? payload.drawnZones : [],
     };

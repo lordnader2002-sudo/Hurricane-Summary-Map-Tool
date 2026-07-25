@@ -48,6 +48,8 @@
       trackPointStyles: ctrl.getTrackPointStyles(),
       trackDefaults: ctrl.getTrackDefaults(),
       callouts: ctrl.getCalloutState(),
+      trackLabels: ctrl.getTrackLabelState(),
+      labelScale: ctrl.getLabelScale(),
       manualOverride: Array.from((state.manualOverride || new Map()).entries()),
       drawnZones: extras.drawnZones || [],
     };
@@ -88,9 +90,12 @@
 
     // Track defaults must be applied BEFORE per-point styles, since they affect
     // the resolved style for points without an override.
+    // Label scale must apply before track/callout render so pills size right.
+    if (typeof snap.labelScale === 'number') ctrl.setLabelScale(snap.labelScale);
     if (snap.trackDefaults) ctrl.setTrackDefaults(snap.trackDefaults);
     if (snap.trackPointStyles) ctrl.applyTrackPointStyles(snap.trackPointStyles);
     if (snap.callouts) ctrl.applyCalloutState(snap.callouts);
+    if (snap.trackLabels) ctrl.applyTrackLabelState(snap.trackLabels);
 
     // Drawn zones are owned by HurricaneDraw, not the map controller — let
     // the caller install them since session.js doesn't import draw.js.
