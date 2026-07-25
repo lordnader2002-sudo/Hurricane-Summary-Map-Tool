@@ -160,6 +160,12 @@ body {
   min-width: 60px;
   display: inline-block;
 }
+.label-size-control input[type="range"] { width: 110px; }
+#labelScaleValue {
+  font-weight: 600;
+  min-width: 42px;
+  display: inline-block;
+}
 
 .checkbox {
   display: inline-flex;
@@ -346,19 +352,29 @@ body {
   cursor: move;
 }
 
-/* Permanent track-point label (white pill above the icon) */
-.leaflet-tooltip.track-label {
+/* Draggable track-point label (white pill; leader line appears once dragged
+   away from its point). Font-size/padding are set inline by map.js so the
+   pill scales with the "Label size" slider. */
+.leaflet-div-icon.track-label-wrapper {
+  background: transparent;
+  border: 0;
+  cursor: move;
+}
+.track-label-box {
+  display: inline-block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
   background: #ffffff;
   color: var(--text);
   border: 1px solid #999999;
   border-radius: 3px;
-  padding: 2px 6px;
-  font-size: 11px;
   font-weight: 600;
+  line-height: 1.2;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   white-space: nowrap;
+  cursor: move;
 }
-.leaflet-tooltip.track-label::before { display: none; }
 
 /* Track-point click editor (inside a Leaflet popup) */
 .track-editor { min-width: 230px; font-size: 13px; }

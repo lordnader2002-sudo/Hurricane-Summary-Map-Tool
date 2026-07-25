@@ -23,6 +23,7 @@
   // --- Callout box geometry (kept in sync with .property-callout in style.css)
   const CALLOUT_FONT =
     '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  const CALLOUT_FONT_PX = 11;
   const CALLOUT_PAD_X = 7;
   const CALLOUT_PAD_Y = 4;
   const CALLOUT_LINE_H = 14;
@@ -33,6 +34,20 @@
   const CALLOUT_SAFETY_X = 14;
   const CALLOUT_SAFETY_Y = 4;
 
+  // --- Track-point label pill geometry (draggable divIcon; kept in sync with
+  //     .track-label-box in style.css)
+  const TRACK_LABEL_FONT_PX = 11;
+  const TRACK_LABEL_FONT =
+    '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  const TRACK_LABEL_PAD_X = 6;
+  const TRACK_LABEL_PAD_Y = 2;
+  const TRACK_LABEL_BORDER = 1;
+
+  // Swap the "NNpx" size in a CSS font shorthand string for a scaled value.
+  function scaledFont(font, basePx, scale) {
+    return font.replace(/\b\d+(\.\d+)?px\b/, Math.round(basePx * scale) + 'px');
+  }
+
   // Impacted properties within this many miles of each other share one callout.
   const CALLOUT_CLUSTER_MILES = 30;
 
@@ -42,6 +57,8 @@
   };
   const TRACK_STYLE = { color: '#000', weight: 3, opacity: 0.85 };
   const LEADER_STYLE = { color: '#c00000', weight: 2, opacity: 0.95 };
+  // Gray leader for track-point labels dragged away from their point.
+  const TRACK_LEADER_STYLE = { color: '#7a828a', weight: 1.5, opacity: 0.9, dashArray: '4 3' };
 
   const TRACK_SHAPES = ['category', 'hurricane', 'dot', 'square', 'triangle'];
   const TRACK_SHAPE_LABEL = {
@@ -53,15 +70,29 @@
   const measureCanvas = document.createElement('canvas');
   const measureCtx = measureCanvas.getContext('2d');
 
-  function measureCalloutBox(lines) {
-    measureCtx.font = CALLOUT_FONT;
+  function measureCalloutBox(lines, scale) {
+    scale = scale || 1;
+    measureCtx.font = scaledFont(CALLOUT_FONT, CALLOUT_FONT_PX, scale);
     let contentW = 0;
     lines.forEach(t => {
       contentW = Math.max(contentW, measureCtx.measureText(t).width);
     });
     return {
-      width: Math.ceil(contentW) + CALLOUT_PAD_X * 2 + CALLOUT_BORDER * 2 + CALLOUT_SAFETY_X,
-      height: lines.length * CALLOUT_LINE_H + CALLOUT_PAD_Y * 2 + CALLOUT_BORDER * 2 + CALLOUT_SAFETY_Y,
+      width: Math.ceil(contentW)
+        + (CALLOUT_PAD_X * 2 + CALLOUT_BORDER * 2 + CALLOUT_SAFETY_X) * scale,
+      height: lines.length * CALLOUT_LINE_H * scale
+        + (CALLOUT_PAD_Y * 2 + CALLOUT_BORDER * 2 + CALLOUT_SAFETY_Y) * scale,
+    };
+  }
+
+  // Measure the pill box for a single-line track-point label at a given scale.
+  function measureTrackLabelBox(text, scale) {
+    scale = scale || 1;
+    measureCtx.font = scaledFont(TRACK_LABEL_FONT, TRACK_LABEL_FONT_PX, scale);
+    const w = Math.ceil(measureCtx.measureText(text || '').width);
+    return {
+      width: w + (TRACK_LABEL_PAD_X * 2 + TRACK_LABEL_BORDER * 2) * scale + 2,
+      height: TRACK_LABEL_FONT_PX * scale + (TRACK_LABEL_PAD_Y * 2 + TRACK_LABEL_BORDER * 2) * scale + 6,
     };
   }
 
@@ -146,6 +177,7 @@
       ww: L.layerGroup().addTo(map),
       track: L.layerGroup().addTo(map),
       trackPoints: L.layerGroup().addTo(map),
+      trackLabels: L.layerGroup().addTo(map),
       properties: L.layerGroup().addTo(map),
       selection: L.layerGroup().addTo(map),
       callouts: L.layerGroup().addTo(map),
@@ -157,6 +189,7 @@
       'Watches & warnings': layers.ww,
       'Storm track': layers.track,
       'Track points': layers.trackPoints,
+      'Track-point labels': layers.trackLabels,
       'Properties': layers.properties,
       'Impacted callouts': layers.callouts,
       'Timeline scrub marker': layers.scrub,
@@ -167,6 +200,15 @@
     let currentStorm = null;
     let currentProperties = [];
     let labelsVisible = true;
+    // Multiplier applied to both track-point label pills and property
+    // callouts, driven by the toolbar "Label size" slider.
+    let labelScale = 1;
+    // Dragged track-label positions, keyed by track-point order. A label
+    // with an entry here is drawn at that position with a leader line back
+    // to its point; otherwise it sits just above the point with no leader.
+    const trackLabelPositions = {};
+    // Live track-label descriptors for the PNG/PDF exporter.
+    let trackLabelData = [];
 
     // Per-point style overrides, keyed by track point `order` (stable index)
     const trackPointStyles = {};
@@ -190,6 +232,7 @@
       onPropertyToggle: () => {},
       onCalloutChange: () => {},
       onCalloutCommit: () => {},
+      onTrackLabelCommit: () => {},
       onSelectionChange: () => {},
     };
 
@@ -270,32 +313,106 @@
         const [lon, lat] = f.geometry.coordinates;
         const style = resolveTrackStyle(f);
         const marker = L.marker([lat, lon], { icon: makeTrackIcon(style) });
-        if (style.label) {
-          marker.bindTooltip(style.label, {
-            permanent: true, direction: 'top', offset: [0, -10],
-            className: 'track-label',
-          });
-        }
         marker.bindPopup(() => buildTrackEditor(f));
         marker.addTo(layers.trackPoints);
         trackMarkers[style.order] = marker;
       });
+
+      renderTrackLabels();
     }
 
-    // Re-style a single track point in place (keeps an open popup open)
+    function makeTrackLabelIcon(text, box, scale) {
+      const fontPx = Math.round(TRACK_LABEL_FONT_PX * scale);
+      const html = '<div class="track-label-box" style="'
+        + `font-size:${fontPx}px;`
+        + `padding:${TRACK_LABEL_PAD_Y * scale}px ${TRACK_LABEL_PAD_X * scale}px;`
+        + `">${escapeHtml(text)}</div>`;
+      return L.divIcon({
+        className: 'track-label-wrapper',
+        html,
+        iconSize: [box.width, box.height],
+        iconAnchor: [box.width / 2, box.height / 2],
+      });
+    }
+
+    // Draggable track-point labels. Each label sits just above its point by
+    // default (no leader); once dragged it persists at the dropped position
+    // with a gray leader line back to the point.
+    function renderTrackLabels() {
+      layers.trackLabels.clearLayers();
+      trackLabelData = [];
+      if (!currentStorm || !currentStorm.trackPoints) return;
+
+      currentStorm.trackPoints.features.forEach(f => {
+        const style = resolveTrackStyle(f);
+        if (!style.label) return;
+        const order = style.order;
+        const [lon, lat] = f.geometry.coordinates;
+        const targetLL = [lat, lon];
+        const box = measureTrackLabelBox(style.label, labelScale);
+
+        let position = trackLabelPositions[order];
+        const dragged = !!position;
+        if (!position) {
+          const tp = map.latLngToLayerPoint(targetLL);
+          const ll = map.layerPointToLatLng(L.point(tp.x, tp.y - box.height / 2 - 12));
+          position = { lat: ll.lat, lng: ll.lng };
+        }
+
+        let leader = null;
+        if (dragged) {
+          leader = L.polyline([[position.lat, position.lng], targetLL], TRACK_LEADER_STYLE)
+            .addTo(layers.trackLabels);
+        }
+
+        const marker = L.marker([position.lat, position.lng], {
+          icon: makeTrackLabelIcon(style.label, box, labelScale),
+          draggable: true,
+          autoPan: false,
+          zIndexOffset: 800,
+        }).addTo(layers.trackLabels);
+
+        const descriptor = { order, text: style.label, position, scale: labelScale };
+        trackLabelData.push(descriptor);
+
+        let dragPrev = null;
+        marker.on('dragstart', () => {
+          dragPrev = trackLabelPositions[order]
+            ? { lat: trackLabelPositions[order].lat, lng: trackLabelPositions[order].lng }
+            : null;
+        });
+        marker.on('drag', () => {
+          const ll = marker.getLatLng();
+          descriptor.position = { lat: ll.lat, lng: ll.lng };
+          trackLabelPositions[order] = descriptor.position;
+          if (!leader) {
+            leader = L.polyline([[ll.lat, ll.lng], targetLL], TRACK_LEADER_STYLE)
+              .addTo(layers.trackLabels);
+          } else {
+            leader.setLatLngs([[ll.lat, ll.lng], targetLL]);
+          }
+        });
+        marker.on('dragend', () => {
+          const ll = marker.getLatLng();
+          trackLabelPositions[order] = { lat: ll.lat, lng: ll.lng };
+          callbacks.onTrackLabelCommit({
+            order,
+            prev: dragPrev,
+            next: { lat: ll.lat, lng: ll.lng },
+          });
+          dragPrev = null;
+        });
+      });
+    }
+
+    // Re-style a single track point in place (keeps an open popup open). Label
+    // changes re-render the (separate) label layer.
     function applyTrackStyle(feature) {
       const marker = trackMarkers[feature.properties.order];
       if (!marker) return;
       const style = resolveTrackStyle(feature);
       marker.setIcon(makeTrackIcon(style));
-      if (style.label) {
-        if (marker.getTooltip()) marker.setTooltipContent(style.label);
-        else marker.bindTooltip(style.label, {
-          permanent: true, direction: 'top', offset: [0, -10], className: 'track-label',
-        });
-      } else if (marker.getTooltip()) {
-        marker.unbindTooltip();
-      }
+      renderTrackLabels();
     }
 
     function buildTrackEditor(feature) {
@@ -538,7 +655,7 @@
           ? calloutTextOverrides[id].slice()
           : defaultLines;
         const target = clusterCenter(cluster);
-        const box = measureCalloutBox(lines);
+        const box = measureCalloutBox(lines, labelScale);
 
         // Use the user's dragged position if there is one; otherwise place the
         // box up-and-right of the cluster, offset by pixels at the current
@@ -560,13 +677,13 @@
 
         const leader = L.polyline([boxLL, targetLL], LEADER_STYLE).addTo(layers.callouts);
         const marker = L.marker(boxLL, {
-          icon: makeCalloutIcon(lines),
+          icon: makeCalloutIcon(lines, labelScale),
           draggable: true,
           autoPan: false,
           zIndexOffset: 1000,
         }).addTo(layers.callouts);
 
-        const descriptor = { id, lines, target, position };
+        const descriptor = { id, lines, target, position, scale: labelScale };
         calloutData.push(descriptor);
 
         let dragPrev = null;
@@ -618,9 +735,14 @@
       });
     }
 
-    function makeCalloutIcon(lines) {
-      const box = measureCalloutBox(lines);
-      const html = '<div class="property-callout">' +
+    function makeCalloutIcon(lines, scale) {
+      scale = scale || 1;
+      const box = measureCalloutBox(lines, scale);
+      const style = `font-size:${Math.round(CALLOUT_FONT_PX * scale)}px;`
+        + `line-height:${CALLOUT_LINE_H * scale}px;`
+        + `padding:${CALLOUT_PAD_Y * scale}px ${CALLOUT_PAD_X * scale}px;`
+        + `border-width:${CALLOUT_BORDER * scale}px;`;
+      const html = `<div class="property-callout" style="${style}">` +
         lines.map(n => `<span class="callout-line">${escapeHtml(n)}</span>`).join('') +
         '</div>';
       return L.divIcon({
@@ -658,7 +780,7 @@
           calloutTextOverrides[id] = newLines.slice();
           descriptor.lines = newLines;
         }
-        marker.setIcon(makeCalloutIcon(descriptor.lines));
+        marker.setIcon(makeCalloutIcon(descriptor.lines, labelScale));
         callbacks.onCalloutChange();
       });
       wrap.appendChild(ta);
@@ -671,7 +793,7 @@
         delete calloutTextOverrides[id];
         descriptor.lines = defaultLines.slice();
         ta.value = descriptor.lines.join('\n');
-        marker.setIcon(makeCalloutIcon(descriptor.lines));
+        marker.setIcon(makeCalloutIcon(descriptor.lines, labelScale));
       });
       wrap.appendChild(reset);
 
@@ -748,22 +870,20 @@
     }
 
     function getOverlayLabels() {
-      const trackLabels = [];
-      if (currentStorm && currentStorm.trackPoints) {
-        currentStorm.trackPoints.features.forEach(f => {
-          const style = resolveTrackStyle(f);
-          if (style.label) {
-            const [lon, lat] = f.geometry.coordinates;
-            trackLabels.push({ text: style.label, lat, lon });
-          }
-        });
-      }
       return {
         callouts: calloutData.map(c => ({
           lines: c.lines.slice(),
           position: { lat: c.position.lat, lng: c.position.lng },
+          scale: c.scale || 1,
         })),
-        trackLabels,
+        // Each track label reports its own (possibly dragged) box center and
+        // scale; the exporter draws the pill there. Leader lines are vector
+        // polylines already captured from the canvas renderer.
+        trackLabels: trackLabelData.map(t => ({
+          text: t.text,
+          position: { lat: t.position.lat, lng: t.position.lng },
+          scale: t.scale || 1,
+        })),
       };
     }
 
@@ -807,6 +927,28 @@
         Object.assign(calloutPositions, s.positions || {});
         Object.assign(calloutTextOverrides, s.textOverrides || {});
       }
+      renderCallouts();
+    }
+
+    function getTrackLabelState() {
+      return { positions: JSON.parse(JSON.stringify(trackLabelPositions)) };
+    }
+    function applyTrackLabelState(s) {
+      Object.keys(trackLabelPositions).forEach(k => delete trackLabelPositions[k]);
+      if (s && s.positions) Object.assign(trackLabelPositions, s.positions);
+      renderTrackLabels();
+    }
+    function setTrackLabelPosition(order, pos) {
+      if (pos) trackLabelPositions[order] = { lat: pos.lat, lng: pos.lng };
+      else delete trackLabelPositions[order];
+      renderTrackLabels();
+    }
+
+    function getLabelScale() { return labelScale; }
+    function setLabelScale(s) {
+      const v = Math.max(0.5, Math.min(3, +s || 1));
+      labelScale = v;
+      renderTrackLabels();
       renderCallouts();
     }
 
@@ -871,9 +1013,12 @@
       getTrackPointsWithStyle, openTrackPoint,
       getTrackPointStyles, applyTrackPointStyles,
       getCalloutState, applyCalloutState,
+      getTrackLabelState, applyTrackLabelState, setTrackLabelPosition,
+      getLabelScale, setLabelScale,
       setScrubPosition,
       setCompareStorm,
       setOnTrackStyleChange: fn => { callbacks.onTrackStyleChange = fn || (() => {}); },
+      setOnTrackLabelCommit: fn => { callbacks.onTrackLabelCommit = fn || (() => {}); },
       setOnPropertyToggle: fn => { callbacks.onPropertyToggle = fn || (() => {}); },
       setOnCalloutChange: fn => { callbacks.onCalloutChange = fn || (() => {}); },
       setOnCalloutCommit: fn => { callbacks.onCalloutCommit = fn || (() => {}); },
@@ -930,11 +1075,19 @@
   window.HurricaneMap = {
     init,
     measureCalloutBox,
+    measureTrackLabelBox,
+    scaledFont,
     CALLOUT_FONT,
+    CALLOUT_FONT_PX,
     CALLOUT_PAD_X,
     CALLOUT_PAD_Y,
     CALLOUT_LINE_H,
     CALLOUT_BORDER,
+    TRACK_LABEL_FONT,
+    TRACK_LABEL_FONT_PX,
+    TRACK_LABEL_PAD_X,
+    TRACK_LABEL_PAD_Y,
+    TRACK_LABEL_BORDER,
     TRACK_SHAPES,
     TRACK_SHAPE_LABEL,
   };

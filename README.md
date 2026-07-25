@@ -85,6 +85,12 @@ properties + dragged-on KMZ).
    free-form description. Labels show on the map and in the exported PNG;
    descriptions stay off the map and surface in the side-panel track-point
    list (expand "Track point list" to see all points and their notes).
+   Track-point labels are **draggable** — pull one away from its point and a
+   thin gray leader line keeps it tied back, just like the property callout
+   boxes. The **Label size** slider in the toolbar scales every track-point
+   label and property callout together (60–200%), so you can shrink them to
+   de-clutter a busy map or enlarge them for a projector; the setting is
+   saved with the session and travels in the Share view URL.
 
 8. **Export PNG** — downloads a snapshot of the live map with the callout
    boxes, leader lines, and track-point labels rendered onto it. The filename

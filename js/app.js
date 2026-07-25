@@ -12,6 +12,8 @@
       csvInput: document.getElementById('csvInput'),
       bufferSlider: document.getElementById('bufferSlider'),
       bufferValue: document.getElementById('bufferValue'),
+      labelScaleSlider: document.getElementById('labelScaleSlider'),
+      labelScaleValue: document.getElementById('labelScaleValue'),
       labelsToggle: document.getElementById('labelsToggle'),
       exportBtn: document.getElementById('exportBtn'),
       exportPdfBtn: document.getElementById('exportPdfBtn'),
@@ -130,6 +132,15 @@
         },
       });
     });
+    ctrl.setOnTrackLabelCommit(({ order, prev, next }) => {
+      scheduleSave();
+      if (state.suppressSave) return;
+      HurricaneUndo.push({
+        label: 'move track label',
+        undo: () => { ctrl.setTrackLabelPosition(order, prev); scheduleSave(); },
+        redo: () => { ctrl.setTrackLabelPosition(order, next); scheduleSave(); },
+      });
+    });
     ctrl.setOnSelectionChange(ids => {
       if (!ids.length) {
         els.selectionBar.hidden = true;
@@ -201,6 +212,11 @@
         drawnZones: draw.getZones(),
       });
     }
+    function syncLabelScaleUI() {
+      const pct = Math.round(ctrl.getLabelScale() * 100);
+      els.labelScaleSlider.value = String(pct);
+      els.labelScaleValue.textContent = `${pct}%`;
+    }
     function snapshotExtras() {
       return { setDrawnZones: zones => draw.setZones(zones) };
     }
@@ -236,6 +252,13 @@
     els.labelsToggle.addEventListener('change', e => {
       state.labelsVisible = e.target.checked;
       ctrl.setLabelsVisible(e.target.checked);
+      scheduleSave();
+    });
+
+    els.labelScaleSlider.addEventListener('input', e => {
+      const pct = parseInt(e.target.value, 10);
+      els.labelScaleValue.textContent = `${pct}%`;
+      ctrl.setLabelScale(pct / 100);
       scheduleSave();
     });
 
@@ -859,6 +882,7 @@
         els.bufferSlider.value = String(state.bufferMiles);
         els.bufferValue.textContent = `${state.bufferMiles} mi`;
         els.labelsToggle.checked = state.labelsVisible !== false;
+        syncLabelScaleUI();
         const defaults = ctrl.getTrackDefaults();
         els.trackShapeDefault.value = defaults.shape;
         els.trackColorByCategory.checked = defaults.colorByCategory;
@@ -905,6 +929,7 @@
         els.bufferSlider.value = String(state.bufferMiles);
         els.bufferValue.textContent = `${state.bufferMiles} mi`;
         els.labelsToggle.checked = state.labelsVisible !== false;
+        syncLabelScaleUI();
         const defaults = ctrl.getTrackDefaults();
         els.trackShapeDefault.value = defaults.shape;
         els.trackColorByCategory.checked = defaults.colorByCategory;

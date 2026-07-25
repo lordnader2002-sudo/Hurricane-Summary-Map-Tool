@@ -18,9 +18,6 @@
 (function () {
   'use strict';
 
-  const TRACK_LABEL_FONT =
-    '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-
   function buildExportCanvas(controller) {
     const map = controller.getMap();
     const { storm } = controller.getCurrent();
@@ -136,15 +133,16 @@
   function drawCallouts(ctx, map, callouts) {
     if (!callouts || callouts.length === 0) return;
     ctx.save();
-    ctx.font = HurricaneMap.CALLOUT_FONT;
     ctx.textBaseline = 'top';
 
-    const padY = HurricaneMap.CALLOUT_PAD_Y;
-    const lineH = HurricaneMap.CALLOUT_LINE_H;
-    const border = HurricaneMap.CALLOUT_BORDER;
-
     callouts.forEach(c => {
-      const box = HurricaneMap.measureCalloutBox(c.lines);
+      const scale = c.scale || 1;
+      ctx.font = HurricaneMap.scaledFont(
+        HurricaneMap.CALLOUT_FONT, HurricaneMap.CALLOUT_FONT_PX, scale);
+      const padY = HurricaneMap.CALLOUT_PAD_Y * scale;
+      const lineH = HurricaneMap.CALLOUT_LINE_H * scale;
+      const border = HurricaneMap.CALLOUT_BORDER * scale;
+      const box = HurricaneMap.measureCalloutBox(c.lines, scale);
       const center = map.latLngToContainerPoint([c.position.lat, c.position.lng]);
       const x = Math.round(center.x - box.width / 2);
       const y = Math.round(center.y - box.height / 2);
@@ -172,29 +170,32 @@
   function drawTrackLabels(ctx, map, trackLabels) {
     if (!trackLabels || trackLabels.length === 0) return;
     ctx.save();
-    ctx.font = TRACK_LABEL_FONT;
     ctx.textBaseline = 'top';
 
-    const padX = 6;
-    const h = 18;
-
     trackLabels.forEach(l => {
-      const pt = map.latLngToContainerPoint([l.lat, l.lon]);
+      const scale = l.scale || 1;
+      ctx.font = HurricaneMap.scaledFont(
+        HurricaneMap.TRACK_LABEL_FONT, HurricaneMap.TRACK_LABEL_FONT_PX, scale);
+      const padX = HurricaneMap.TRACK_LABEL_PAD_X * scale;
+      const padY = HurricaneMap.TRACK_LABEL_PAD_Y * scale;
+      const border = HurricaneMap.TRACK_LABEL_BORDER * scale;
       const tw = ctx.measureText(l.text).width;
-      const w = tw + padX * 2;
-      // Centered above the track point (mirrors the permanent tooltip)
+      const w = Math.round(tw + padX * 2 + border * 2);
+      const h = Math.round(HurricaneMap.TRACK_LABEL_FONT_PX * scale + padY * 2 + border * 2 + 2);
+      // Centered on the label's (possibly dragged) position.
+      const pt = map.latLngToContainerPoint([l.position.lat, l.position.lng]);
       const x = Math.round(pt.x - w / 2);
-      const y = Math.round(pt.y - 14 - h);
+      const y = Math.round(pt.y - h / 2);
 
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#999999';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = border;
       roundRect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, 3);
       ctx.fill();
       ctx.stroke();
 
       ctx.fillStyle = '#1d2733';
-      ctx.fillText(l.text, x + padX, y + 4);
+      ctx.fillText(l.text, x + padX + border, y + padY + border + 1);
     });
     ctx.restore();
   }
