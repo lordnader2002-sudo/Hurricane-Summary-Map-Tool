@@ -75,11 +75,16 @@ properties + dragged-on KMZ).
    the algorithm wouldn't otherwise have flagged it; flipping it off does the
    reverse. The override survives buffer-slider changes.
 
-7. **Style the track points.** In the **Track Points** side-panel section,
-   set a default icon (category icon, hurricane symbol, dot, square, or
-   triangle) and color (per-category or a single uniform color). The
-   hurricane symbol is a colored circular badge with a white typhoon glyph,
-   matching the NHC / Google Maps storm markers. To label or restyle an
+7. **Style the track points.** Out of the box the track renders NHC-style:
+   the first point (the storm's present location) is an **orange hurricane
+   symbol labeled "Current Position"**, and every forecast point after it
+   is a **blue hurricane symbol**. In the **Track Points** side-panel
+   section you can change the default icon (category icon, hurricane
+   symbol, dot, square, or triangle) and color (per-category or a single
+   uniform color); the first point keeps its orange accent and label unless
+   you override that point individually. The hurricane symbol is a colored
+   circular badge with a white typhoon glyph, matching the NHC / Google
+   Maps storm markers. To label or restyle an
    individual point — e.g. tagging one as "Current Location" — **click it on
    the map** and use the editor popup to set its label, icon, color, or a
    free-form description. Labels show on the map and in the exported PNG;

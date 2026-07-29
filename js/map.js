@@ -66,6 +66,11 @@
     dot: 'Dot', square: 'Square', triangle: 'Triangle',
   };
 
+  // NHC-style default track colors: the storm's present location is orange,
+  // every forecast point after it is blue.
+  const CURRENT_POSITION_COLOR = '#f57c00';
+  const FORECAST_POINT_COLOR = '#0288d1';
+
   // Offscreen canvas for measuring callout text width
   const measureCanvas = document.createElement('canvas');
   const measureCtx = measureCanvas.getContext('2d');
@@ -213,7 +218,7 @@
     // Per-point style overrides, keyed by track point `order` (stable index)
     const trackPointStyles = {};
     // Default style applied to points without an override
-    let trackDefaults = { shape: 'category', color: '#1f4e79', colorByCategory: true };
+    let trackDefaults = { shape: 'hurricane', color: FORECAST_POINT_COLOR, colorByCategory: false };
     // order -> L.marker, so the click-editor can update a point in place
     const trackMarkers = {};
 
@@ -274,16 +279,31 @@
       renderTrackPoints();
     }
 
+    // The storm's present location = first feature of the (time-sorted)
+    // track-point collection. Points keep their original parse `order`, so
+    // compare against features[0] rather than assuming order === 0.
+    function isCurrentPosition(order) {
+      const feats = currentStorm && currentStorm.trackPoints
+        && currentStorm.trackPoints.features;
+      return !!(feats && feats.length && feats[0].properties.order === order);
+    }
+
     function resolveTrackStyle(feature) {
       const order = feature.properties.order;
       const cat = feature.properties.category;
+      const current = isCurrentPosition(order);
       const override = trackPointStyles[order] || {};
       const shape = override.shape || trackDefaults.shape;
       let color = override.color;
       if (!color) {
-        color = trackDefaults.colorByCategory ? categoryColor(cat) : trackDefaults.color;
+        // The current-position point defaults to its own accent color; a
+        // per-point override still wins.
+        if (current) color = CURRENT_POSITION_COLOR;
+        else color = trackDefaults.colorByCategory ? categoryColor(cat) : trackDefaults.color;
       }
-      const label = override.label != null ? override.label : '';
+      let label = override.label != null ? override.label : '';
+      // The present location is always labeled unless the user renames it.
+      if (!label && current) label = 'Current Position';
       const description = override.description != null ? override.description : '';
       return { shape, color, label, description, order, cat };
     }
