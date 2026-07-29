@@ -1,4 +1,4 @@
-# Hurricane Summary Map Tool
+# Hurricane Map Tool
 
 A self-contained, browser-based tool for producing the hurricane summary map
 deliverable: upload NOAA hurricane GIS file(s) and a properties CSV, and the
