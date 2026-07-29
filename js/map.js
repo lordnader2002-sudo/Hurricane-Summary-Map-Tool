@@ -288,22 +288,41 @@
       return !!(feats && feats.length && feats[0].properties.order === order);
     }
 
+    // Default labels: "Current Location" for the first point, then
+    // "12 Hour Forecast" / "24 Hour Forecast" / … for each point after it.
+    // Hours come from the point timestamps when present (so NHC's 60/72/96/
+    // 120-hour points label correctly); otherwise assume 12-hour spacing.
+    function defaultTrackLabel(feature) {
+      const feats = currentStorm && currentStorm.trackPoints
+        && currentStorm.trackPoints.features;
+      if (!feats || feats.length === 0) return '';
+      const idx = feats.findIndex(f => f.properties.order === feature.properties.order);
+      if (idx < 0) return '';
+      if (idx === 0) return 'Current Location';
+      const t0 = feats[0].properties.timestamp;
+      const t = feature.properties.timestamp;
+      const hours = (t0 != null && t != null && t > t0)
+        ? Math.round((t - t0) / 3600000)
+        : idx * 12;
+      return hours + ' Hour Forecast';
+    }
+
     function resolveTrackStyle(feature) {
       const order = feature.properties.order;
       const cat = feature.properties.category;
-      const current = isCurrentPosition(order);
       const override = trackPointStyles[order] || {};
       const shape = override.shape || trackDefaults.shape;
       let color = override.color;
       if (!color) {
         // The current-position point defaults to its own accent color; a
         // per-point override still wins.
-        if (current) color = CURRENT_POSITION_COLOR;
+        if (isCurrentPosition(order)) color = CURRENT_POSITION_COLOR;
         else color = trackDefaults.colorByCategory ? categoryColor(cat) : trackDefaults.color;
       }
       let label = override.label != null ? override.label : '';
-      // The present location is always labeled unless the user renames it.
-      if (!label && current) label = 'Current Position';
+      // Every point is labeled by default; clearing the label in the editor
+      // falls back to the default rather than removing it.
+      if (!label) label = defaultTrackLabel(feature);
       const description = override.description != null ? override.description : '';
       return { shape, color, label, description, order, cat };
     }
