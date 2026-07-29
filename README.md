@@ -75,11 +75,16 @@ properties + dragged-on KMZ).
    the algorithm wouldn't otherwise have flagged it; flipping it off does the
    reverse. The override survives buffer-slider changes.
 
-7. **Style the track points.** In the **Track Points** side-panel section,
-   set a default icon (category icon, hurricane symbol, dot, square, or
-   triangle) and color (per-category or a single uniform color). The
-   hurricane symbol is a colored circular badge with a white typhoon glyph,
-   matching the NHC / Google Maps storm markers. To label or restyle an
+7. **Style the track points.** Out of the box the track renders NHC-style:
+   the first point (the storm's present location) is an **orange hurricane
+   symbol labeled "Current Position"**, and every forecast point after it
+   is a **blue hurricane symbol**. In the **Track Points** side-panel
+   section you can change the default icon (category icon, hurricane
+   symbol, dot, square, or triangle) and color (per-category or a single
+   uniform color); the first point keeps its orange accent and label unless
+   you override that point individually. The hurricane symbol is a colored
+   circular badge with a white typhoon glyph, matching the NHC / Google
+   Maps storm markers. To label or restyle an
    individual point — e.g. tagging one as "Current Location" — **click it on
    the map** and use the editor popup to set its label, icon, color, or a
    free-form description. Labels show on the map and in the exported PNG;
@@ -103,12 +108,17 @@ properties + dragged-on KMZ).
 
 10. **Export Impacted CSV** — downloads a CSV containing only the impacted
     properties, with columns `property_id, name, address, postal_code, lat,
-    lon, dist_miles, in_cone, manually_flagged`. Use it to email or hand off
-    the at-risk list.
+    lon, dist_miles, dist_storm_miles, in_cone, zone_name,
+    manually_flagged`. `dist_miles` is the distance to the track centerline
+    (what the buffer test uses); `dist_storm_miles` is the distance to the
+    storm's current position (what the UI displays). Use it to email or
+    hand off the at-risk list.
 
 The right-hand side panel also lists the impacted properties, sortable by
-distance to track, name, or in-cone status. Click a row to fly the map to
-that property.
+distance to the storm's current position, name, or in-cone status. Click a
+row to fly the map to that property. Property tooltips and popups show
+"X mi from storm" — the distance to the storm's present location (first
+track point of the advisory), not to the full forecast track line.
 
 The map supports **fractional zoom** — the +/- buttons step half a zoom
 level and the scroll wheel is finer still — so you can frame the full
@@ -160,7 +170,7 @@ one zoom level that's too tight and the next that's too loose.
     store-to-store distances exactly. Double-click or <kbd>Esc</kbd>
     to finish; right-click → "Clear measurement" to remove.
   - **Drop pin here** — places a single ephemeral marker with a
-    permanent tooltip showing "X mi from track / in cone / in
+    permanent tooltip showing "X mi from storm / in cone / in
     buffer / outside." Refreshes when the buffer slider or storm
     advisory changes.
   - **Draw zone here** — left-click each polygon vertex,
