@@ -77,14 +77,18 @@ properties + dragged-on KMZ).
 
 7. **Style the track points.** Out of the box the track renders NHC-style:
    the first point (the storm's present location) is an **orange hurricane
-   symbol labeled "Current Position"**, and every forecast point after it
-   is a **blue hurricane symbol**. In the **Track Points** side-panel
-   section you can change the default icon (category icon, hurricane
-   symbol, dot, square, or triangle) and color (per-category or a single
-   uniform color); the first point keeps its orange accent and label unless
-   you override that point individually. The hurricane symbol is a colored
-   circular badge with a white typhoon glyph, matching the NHC / Google
-   Maps storm markers. To label or restyle an
+   symbol labeled "Current Location"**, and every forecast point after it
+   is a **blue hurricane symbol automatically labeled with its hour
+   offset** — "12 Hour Forecast", "24 Hour Forecast", and so on through
+   the last point. Hours are read from the advisory timestamps when
+   present (so NHC's 60/72/96/120-hour points label correctly) and assume
+   12-hour spacing otherwise. In the **Track Points** side-panel section
+   you can change the default icon (category icon, hurricane symbol, dot,
+   square, or triangle) and color (per-category or a single uniform
+   color); the first point keeps its orange accent unless you override
+   that point individually, and editing any point's label replaces its
+   default. The hurricane symbol is a colored circular badge with a white
+   typhoon glyph, matching the NHC / Google Maps storm markers. To label or restyle an
    individual point — e.g. tagging one as "Current Location" — **click it on
    the map** and use the editor popup to set its label, icon, color, or a
    free-form description. Labels show on the map and in the exported PNG;
