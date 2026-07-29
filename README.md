@@ -103,12 +103,17 @@ properties + dragged-on KMZ).
 
 10. **Export Impacted CSV** — downloads a CSV containing only the impacted
     properties, with columns `property_id, name, address, postal_code, lat,
-    lon, dist_miles, in_cone, manually_flagged`. Use it to email or hand off
-    the at-risk list.
+    lon, dist_miles, dist_storm_miles, in_cone, zone_name,
+    manually_flagged`. `dist_miles` is the distance to the track centerline
+    (what the buffer test uses); `dist_storm_miles` is the distance to the
+    storm's current position (what the UI displays). Use it to email or
+    hand off the at-risk list.
 
 The right-hand side panel also lists the impacted properties, sortable by
-distance to track, name, or in-cone status. Click a row to fly the map to
-that property.
+distance to the storm's current position, name, or in-cone status. Click a
+row to fly the map to that property. Property tooltips and popups show
+"X mi from storm" — the distance to the storm's present location (first
+track point of the advisory), not to the full forecast track line.
 
 The map supports **fractional zoom** — the +/- buttons step half a zoom
 level and the scroll wheel is finer still — so you can frame the full
@@ -160,7 +165,7 @@ one zoom level that's too tight and the next that's too loose.
     store-to-store distances exactly. Double-click or <kbd>Esc</kbd>
     to finish; right-click → "Clear measurement" to remove.
   - **Drop pin here** — places a single ephemeral marker with a
-    permanent tooltip showing "X mi from track / in cone / in
+    permanent tooltip showing "X mi from storm / in cone / in
     buffer / outside." Refreshes when the buffer slider or storm
     advisory changes.
   - **Draw zone here** — left-click each polygon vertex,

@@ -721,15 +721,18 @@
       const impacted = state.properties.filter(p => p.impacted);
       els.impactedCount.textContent = String(impacted.length);
 
+      // Sort by distance to the storm's current position (what the list
+      // displays); fall back to track distance for storms with no points.
+      const distOf = p => p.distStormMiles ?? p.distMiles ?? Infinity;
       const sortBy = els.sortBy.value;
       const sorted = impacted.slice().sort((a, b) => {
         if (sortBy === 'name') return a.name.localeCompare(b.name);
         if (sortBy === 'cone') {
           if (a.inCone !== b.inCone) return a.inCone ? -1 : 1;
-          return (a.distMiles ?? Infinity) - (b.distMiles ?? Infinity);
+          return distOf(a) - distOf(b);
         }
         // distance
-        return (a.distMiles ?? Infinity) - (b.distMiles ?? Infinity);
+        return distOf(a) - distOf(b);
       });
 
       els.impactedList.innerHTML = '';
@@ -762,7 +765,9 @@
 
         const meta = document.createElement('span');
         meta.className = 'meta';
-        const distTxt = p.distMiles != null ? `${p.distMiles.toFixed(1)} mi from track` : '';
+        const distTxt = p.distStormMiles != null
+          ? `${p.distStormMiles.toFixed(1)} mi from storm`
+          : (p.distMiles != null ? `${p.distMiles.toFixed(1)} mi from track` : '');
         meta.textContent = [p.address, distTxt].filter(Boolean).join(' · ');
         li.appendChild(meta);
 
@@ -1072,7 +1077,8 @@
     function buildImpactedCsv(impacted) {
       const headers = [
         'property_id', 'name', 'address', 'postal_code',
-        'lat', 'lon', 'dist_miles', 'in_cone', 'zone_name', 'manually_flagged',
+        'lat', 'lon', 'dist_miles', 'dist_storm_miles', 'in_cone',
+        'zone_name', 'manually_flagged',
       ];
       const lines = [headers.join(',')];
       impacted.forEach(p => {
@@ -1084,6 +1090,7 @@
           p.lat,
           p.lon,
           p.distMiles != null ? p.distMiles.toFixed(2) : '',
+          p.distStormMiles != null ? p.distStormMiles.toFixed(2) : '',
           p.inCone ? 'true' : 'false',
           p.zoneName || '',
           state.manualOverride.has(p.id) ? 'true' : 'false',
@@ -1204,7 +1211,9 @@
         li.appendChild(name);
         const meta = document.createElement('span');
         meta.className = 'meta';
-        const distTxt = p.distMiles != null ? p.distMiles.toFixed(1) + ' mi from track' : '';
+        const distTxt = p.distStormMiles != null
+          ? p.distStormMiles.toFixed(1) + ' mi from storm'
+          : (p.distMiles != null ? p.distMiles.toFixed(1) + ' mi from track' : '');
         meta.textContent = [p.address, distTxt].filter(Boolean).join(' · ');
         li.appendChild(meta);
         frag.appendChild(li);

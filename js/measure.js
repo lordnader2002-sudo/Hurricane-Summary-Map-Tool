@@ -203,7 +203,9 @@
       const res = impactLookup({ lat: latlng.lat, lon: latlng.lng });
       if (!res) return coords;
       const bits = [coords];
-      if (res.distMiles != null) {
+      if (res.distStormMiles != null) {
+        bits.push(`${formatMiles(res.distStormMiles)} from storm`);
+      } else if (res.distMiles != null) {
         bits.push(`${formatMiles(res.distMiles)} from track`);
       }
       if (res.inCone) bits.push('IN CONE');

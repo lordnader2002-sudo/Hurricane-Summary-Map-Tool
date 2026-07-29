@@ -549,7 +549,9 @@
         m.bindTooltip(
           `<strong>${escapeHtml(p.name)}</strong>` +
           (p.address ? `<br>${escapeHtml(p.address)}` : '') +
-          (p.distMiles != null ? `<br>${p.distMiles.toFixed(1)} mi from track` : '') +
+          (p.distStormMiles != null
+            ? `<br>${p.distStormMiles.toFixed(1)} mi from storm`
+            : (p.distMiles != null ? `<br>${p.distMiles.toFixed(1)} mi from track` : '')) +
           (p.inCone ? '<br><em>In cone</em>' : ''),
           { direction: 'top' }
         );
@@ -612,6 +614,9 @@
       const stats = document.createElement('div');
       stats.className = 'property-editor-stats';
       const bits = [];
+      // Distance to the storm's current position is the headline number; the
+      // track-centerline distance stays visible since it drives the buffer test.
+      if (p.distStormMiles != null) bits.push(p.distStormMiles.toFixed(1) + ' mi from storm');
       if (p.distMiles != null) bits.push(p.distMiles.toFixed(1) + ' mi from track');
       if (p.inCone) bits.push('in cone');
       bits.push('algorithm: ' + (p.algoImpacted ? 'impacted' : 'not impacted'));
