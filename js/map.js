@@ -205,9 +205,10 @@
     let currentStorm = null;
     let currentProperties = [];
     let labelsVisible = true;
-    // Multiplier applied to both track-point label pills and property
-    // callouts, driven by the toolbar "Label size" slider.
-    let labelScale = 1;
+    // Size multipliers driven by the toolbar sliders — property callouts and
+    // track-point label pills scale independently.
+    let labelScale = 1;        // property callouts ("Callout size" slider)
+    let trackLabelScale = 1;   // track-point pills ("Track labels" slider)
     // Dragged track-label positions, keyed by track-point order. A label
     // with an entry here is drawn at that position with a leader line back
     // to its point; otherwise it sits just above the point with no leader.
@@ -388,7 +389,7 @@
         const order = style.order;
         const [lon, lat] = f.geometry.coordinates;
         const targetLL = [lat, lon];
-        const box = measureTrackLabelBox(style.label, labelScale);
+        const box = measureTrackLabelBox(style.label, trackLabelScale);
 
         let position = trackLabelPositions[order];
         const dragged = !!position;
@@ -405,13 +406,13 @@
         }
 
         const marker = L.marker([position.lat, position.lng], {
-          icon: makeTrackLabelIcon(style.label, box, labelScale),
+          icon: makeTrackLabelIcon(style.label, box, trackLabelScale),
           draggable: true,
           autoPan: false,
           zIndexOffset: 800,
         }).addTo(layers.trackLabels);
 
-        const descriptor = { order, text: style.label, position, scale: labelScale };
+        const descriptor = { order, text: style.label, position, scale: trackLabelScale };
         trackLabelData.push(descriptor);
 
         let dragPrev = null;
@@ -988,12 +989,18 @@
       renderTrackLabels();
     }
 
+    function clampScale(s) { return Math.max(0.5, Math.min(3, +s || 1)); }
+
     function getLabelScale() { return labelScale; }
     function setLabelScale(s) {
-      const v = Math.max(0.5, Math.min(3, +s || 1));
-      labelScale = v;
-      renderTrackLabels();
+      labelScale = clampScale(s);
       renderCallouts();
+    }
+
+    function getTrackLabelScale() { return trackLabelScale; }
+    function setTrackLabelScale(s) {
+      trackLabelScale = clampScale(s);
+      renderTrackLabels();
     }
 
     // Render a comparison storm as a dashed lighter cone and dashed black
@@ -1059,6 +1066,7 @@
       getCalloutState, applyCalloutState,
       getTrackLabelState, applyTrackLabelState, setTrackLabelPosition,
       getLabelScale, setLabelScale,
+      getTrackLabelScale, setTrackLabelScale,
       setScrubPosition,
       setCompareStorm,
       setOnTrackStyleChange: fn => { callbacks.onTrackStyleChange = fn || (() => {}); },

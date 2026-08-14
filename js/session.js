@@ -50,6 +50,7 @@
       callouts: ctrl.getCalloutState(),
       trackLabels: ctrl.getTrackLabelState(),
       labelScale: ctrl.getLabelScale(),
+      trackLabelScale: ctrl.getTrackLabelScale(),
       manualOverride: Array.from((state.manualOverride || new Map()).entries()),
       drawnZones: extras.drawnZones || [],
     };
@@ -90,8 +91,14 @@
 
     // Track defaults must be applied BEFORE per-point styles, since they affect
     // the resolved style for points without an override.
-    // Label scale must apply before track/callout render so pills size right.
+    // Label scales must apply before track/callout render so pills size
+    // right. Older snapshots had one shared scale — use it for both.
     if (typeof snap.labelScale === 'number') ctrl.setLabelScale(snap.labelScale);
+    if (typeof snap.trackLabelScale === 'number') {
+      ctrl.setTrackLabelScale(snap.trackLabelScale);
+    } else if (typeof snap.labelScale === 'number') {
+      ctrl.setTrackLabelScale(snap.labelScale);
+    }
     if (snap.trackDefaults) ctrl.setTrackDefaults(snap.trackDefaults);
     if (snap.trackPointStyles) ctrl.applyTrackPointStyles(snap.trackPointStyles);
     if (snap.callouts) ctrl.applyCalloutState(snap.callouts);

@@ -14,6 +14,8 @@
       bufferValue: document.getElementById('bufferValue'),
       labelScaleSlider: document.getElementById('labelScaleSlider'),
       labelScaleValue: document.getElementById('labelScaleValue'),
+      trackLabelScaleSlider: document.getElementById('trackLabelScaleSlider'),
+      trackLabelScaleValue: document.getElementById('trackLabelScaleValue'),
       labelsToggle: document.getElementById('labelsToggle'),
       exportBtn: document.getElementById('exportBtn'),
       exportPdfBtn: document.getElementById('exportPdfBtn'),
@@ -216,6 +218,9 @@
       const pct = Math.round(ctrl.getLabelScale() * 100);
       els.labelScaleSlider.value = String(pct);
       els.labelScaleValue.textContent = `${pct}%`;
+      const tpct = Math.round(ctrl.getTrackLabelScale() * 100);
+      els.trackLabelScaleSlider.value = String(tpct);
+      els.trackLabelScaleValue.textContent = `${tpct}%`;
     }
     function snapshotExtras() {
       return { setDrawnZones: zones => draw.setZones(zones) };
@@ -259,6 +264,13 @@
       const pct = parseInt(e.target.value, 10);
       els.labelScaleValue.textContent = `${pct}%`;
       ctrl.setLabelScale(pct / 100);
+      scheduleSave();
+    });
+
+    els.trackLabelScaleSlider.addEventListener('input', e => {
+      const pct = parseInt(e.target.value, 10);
+      els.trackLabelScaleValue.textContent = `${pct}%`;
+      ctrl.setTrackLabelScale(pct / 100);
       scheduleSave();
     });
 
