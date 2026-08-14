@@ -96,10 +96,12 @@ properties + dragged-on KMZ).
    list (expand "Track point list" to see all points and their notes).
    Track-point labels are **draggable** — pull one away from its point and a
    thin gray leader line keeps it tied back, just like the property callout
-   boxes. The **Label size** slider in the toolbar scales every track-point
-   label and property callout together (60–200%), so you can shrink them to
-   de-clutter a busy map or enlarge them for a projector; the setting is
-   saved with the session and travels in the Share view URL.
+   boxes. Two independent toolbar sliders control text size (60–200%):
+   **Callout size** scales the black property callout boxes, and **Track
+   labels** scales the white forecast-hour pills — so you can shrink the
+   hour labels to de-clutter the track while keeping property names
+   readable, or vice versa. Both settings are saved with the session and
+   travel in the Share view URL.
 
 8. **Export PNG** — downloads a snapshot of the live map with the callout
    boxes, leader lines, and track-point labels rendered onto it. The filename

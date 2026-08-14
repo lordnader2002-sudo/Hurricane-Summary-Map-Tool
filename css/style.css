@@ -161,7 +161,8 @@ body {
   display: inline-block;
 }
 .label-size-control input[type="range"] { width: 110px; }
-#labelScaleValue {
+#labelScaleValue,
+#trackLabelScaleValue {
   font-weight: 600;
   min-width: 42px;
   display: inline-block;
