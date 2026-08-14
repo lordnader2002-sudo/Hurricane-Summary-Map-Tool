@@ -25,14 +25,100 @@
   const VERSION = 4;
   const HASH_PARAM = 's';
 
+  // ---- Payload compaction --------------------------------------------------
+  // A naive embed of the parsed advisory produced 30KB+ URLs: NHC KML ships
+  // 13+ decimal coordinates, multi-KB HTML <description> blobs per placemark,
+  // and base64 category-icon PNGs — and every bookmark duplicated the whole
+  // storm + property list. Compact before compressing:
+  //   - coordinates rounded to 5 decimals (~1 m; imperceptible on the map and
+  //     far inside the accuracy of a forecast cone)
+  //   - KML description blobs dropped (user-entered descriptions live in
+  //     trackPointStyles, which is carried separately)
+  //   - iconMap dropped (receiver's category-icon shape falls back to the
+  //     generated vector dot; the default hurricane glyph is unaffected)
+  //   - property rows lose their `raw` original-CSV copy
+  //   - bookmarks travel as customisation-only snapshots that re-apply onto
+  //     the shared storm rather than embedding their own copy of it
+
+  const COORD_DECIMALS = 1e5;
+
+  function roundDeep(c) {
+    if (Array.isArray(c)) return c.map(roundDeep);
+    return typeof c === 'number' ? Math.round(c * COORD_DECIMALS) / COORD_DECIMALS : c;
+  }
+
+  function compactFeature(f) {
+    if (!f) return f;
+    const props = Object.assign({}, f.properties);
+    delete props.description;
+    return {
+      type: 'Feature',
+      geometry: f.geometry ? {
+        type: f.geometry.type,
+        coordinates: roundDeep(f.geometry.coordinates),
+      } : null,
+      properties: props,
+    };
+  }
+
+  function compactParts(parts) {
+    return (parts || []).map(p => {
+      const out = Object.assign({}, p);
+      delete out.iconMap;
+      if (out.trackPoints && out.trackPoints.features) {
+        out.trackPoints = {
+          type: 'FeatureCollection',
+          features: out.trackPoints.features.map(compactFeature),
+        };
+      }
+      if (out.trackLine) out.trackLine = compactFeature(out.trackLine);
+      if (out.cone) out.cone = compactFeature(out.cone);
+      if (Array.isArray(out.ww)) {
+        out.ww = out.ww.map(seg => Object.assign({}, seg, {
+          geometry: seg.geometry ? {
+            type: seg.geometry.type,
+            coordinates: roundDeep(seg.geometry.coordinates),
+          } : seg.geometry,
+        }));
+      }
+      return out;
+    });
+  }
+
+  function compactProperties(rows) {
+    return (rows || []).map(r => {
+      const out = Object.assign({}, r);
+      delete out.raw;
+      out.lat = roundDeep(out.lat);
+      out.lon = roundDeep(out.lon);
+      return out;
+    });
+  }
+
+  // Strip the embedded storm/properties out of each bookmark snapshot. On
+  // restore, applySnapshot skips empty parts / missing properties and keeps
+  // whatever is currently loaded, so a light bookmark re-applies its
+  // customisations onto the shared storm.
+  function lightBookmarks(list) {
+    return (list || []).map(b => {
+      const snap = Object.assign({}, b.snapshot);
+      if (snap.storm) snap.storm = { parts: [], fileNames: snap.storm.fileNames || [] };
+      delete snap.properties;
+      if (snap.compareStorm) {
+        snap.compareStorm = { parts: [], fileNames: snap.compareStorm.fileNames || [] };
+      }
+      return { name: b.name, savedAt: b.savedAt, snapshot: snap };
+    });
+  }
+
   function encode(state, ctrl) {
     const payload = {
       v: VERSION,
       ts: Date.now(),
       // Embedded data — receiver doesn't need to re-upload.
-      parts: state.parts || [],
-      properties: state.rawProperties || [],
-      compareParts: state.compareParts || [],
+      parts: compactParts(state.parts),
+      properties: compactProperties(state.rawProperties),
+      compareParts: compactParts(state.compareParts),
       // Filenames kept for display ("you're viewing X.kmz + Y.csv") and
       // backward compatibility with the legacy applyPending() flow.
       fileNames: (state.parts || []).map(p => p.fileName || ''),
@@ -50,10 +136,10 @@
       // extras shim from app.js (HurricaneDraw.setZones).
       drawnZones: typeof state.getDrawnZonesForShare === 'function'
         ? state.getDrawnZonesForShare() : (state.drawnZonesForShare || []),
-      // Sender's bookmarks. Receiver merges them into their own collection
-      // via HurricaneBookmarks.importMany.
+      // Sender's bookmarks, stripped to customisation-only snapshots.
+      // Receiver merges them via HurricaneBookmarks.importMany.
       bookmarks: typeof HurricaneBookmarks !== 'undefined'
-        ? HurricaneBookmarks.list() : [],
+        ? lightBookmarks(HurricaneBookmarks.list()) : [],
     };
     const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(payload));
     const base = location.origin + location.pathname + location.search;
