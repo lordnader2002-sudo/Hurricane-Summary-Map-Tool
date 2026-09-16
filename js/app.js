@@ -983,7 +983,13 @@
 
         state.pendingShare = null;
         // Clear the share hash so a follow-up refresh doesn't re-prompt
-        if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+        // Clear the share hash so a follow-up refresh doesn't re-prompt.
+        // Built from href (not pathname) and guarded so it also works when
+        // the tool is opened straight from disk (file://).
+        if (location.hash) {
+          try { history.replaceState(null, '', location.href.split('#')[0]); }
+          catch (_) { /* file:// in some browsers — harmless to keep the hash */ }
+        }
       } finally {
         state.suppressSave = false;
       }

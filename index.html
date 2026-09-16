@@ -209,12 +209,22 @@
   <script src="vendor/lz-string.min.js"></script>
   <script src="vendor/jspdf.umd.min.js"></script>
 
+  <!-- Offline data bundles (script tags, not fetch, so file:// works):
+       Natural Earth basemap (public domain) + GeoNames US ZIP centroids
+       (CC-BY 4.0). Regenerate with scripts/build-offline-data.js. -->
+  <script src="offline/basemap-countries.js"></script>
+  <script src="offline/basemap-states.js"></script>
+  <script src="offline/basemap-lakes.js"></script>
+  <script src="offline/basemap-cities.js"></script>
+  <script src="offline/zipcodes-us.js"></script>
+
   <!-- App modules -->
   <script src="js/toast.js"></script>
   <script src="js/kmz.js"></script>
   <script src="js/shapefile.js"></script>
   <script src="js/csv.js"></script>
   <script src="js/impact.js"></script>
+  <script src="js/basemap.js"></script>
   <script src="js/map.js"></script>
   <script src="js/export.js"></script>
   <script src="js/session.js"></script>

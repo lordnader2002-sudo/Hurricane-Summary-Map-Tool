@@ -902,6 +902,19 @@ details > summary:focus-visible {
   justify-content: center;
 }
 
+/* Offline basemap city labels (visible when OSM tiles are unavailable) */
+.basemap-city-label {
+  background: transparent;
+  border: 0;
+  pointer-events: none;
+}
+.basemap-city-label span {
+  font-size: 10px;
+  color: #5c6873;
+  white-space: nowrap;
+  text-shadow: 0 0 3px #ffffff, 0 0 3px #ffffff;
+}
+
 /* Distance-measure tool (right-click on the map) */
 .measure-cursor,
 .measure-cursor .leaflet-interactive {

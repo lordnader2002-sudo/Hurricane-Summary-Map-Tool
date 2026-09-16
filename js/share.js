@@ -143,7 +143,9 @@
         ? lightBookmarks(HurricaneBookmarks.list()) : [],
     };
     const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(payload));
-    const base = location.origin + location.pathname + location.search;
+    // location.origin is the literal string "null" when opened from disk
+    // (file://), so build the base from href instead — works everywhere.
+    const base = location.href.split('#')[0];
     return `${base}#${HASH_PARAM}=${compressed}`;
   }
 
