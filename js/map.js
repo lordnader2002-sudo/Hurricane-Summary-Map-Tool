@@ -1,4 +1,4 @@
-/* global L, turf */
+/* global L, turf, HurricaneBasemap, HurricaneToast */
 /*
  * Leaflet map rendering for the hurricane summary tool.
  *
@@ -168,11 +168,39 @@
       wheelPxPerZoomLevel: 120,
     }).setView([30, -75], 4);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18,
-      attribution: '© OpenStreetMap contributors',
-      crossOrigin: true,
-    }).addTo(map);
+    // Bundled Natural Earth vector basemap in a pane below the tiles: when
+    // OSM tiles load they cover it; offline it shows through. See basemap.js.
+    const basemap = (typeof HurricaneBasemap !== 'undefined')
+      ? HurricaneBasemap.init(map)
+      : { getVisibleCityLabels: () => [] };
+
+    // OSM tiles — skipped entirely when the browser knows it's offline, and
+    // removed after repeated failures so a flaky connection doesn't leave a
+    // patchwork of broken tiles over the vector basemap.
+    let tileLayer = null;
+    if (navigator.onLine !== false) {
+      tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '© OpenStreetMap contributors',
+        crossOrigin: true,
+      }).addTo(map);
+      let tileErrors = 0;
+      let tileLoads = 0;
+      tileLayer.on('tileload', () => { tileLoads++; });
+      tileLayer.on('tileerror', () => {
+        tileErrors++;
+        if (tileLoads === 0 && tileErrors >= 6 && tileLayer) {
+          map.removeLayer(tileLayer);
+          tileLayer = null;
+          if (typeof HurricaneToast !== 'undefined') {
+            HurricaneToast.show(
+              'Map tiles unreachable — using the bundled offline basemap',
+              'info', { timeout: 6000 }
+            );
+          }
+        }
+      });
+    }
 
     const layers = {
       // Comparison layers go in first so they render under the primary
@@ -1090,6 +1118,8 @@
       getLayers: () => layers,
       getCurrent: () => ({ storm: currentStorm, properties: currentProperties }),
       getOverlayLabels,
+      getBasemapCityLabels: () => basemap.getVisibleCityLabels(),
+      isTileLayerActive: () => !!tileLayer,
     };
   }
 

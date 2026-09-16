@@ -1,0 +1,62 @@
+# Builds the offline distributables and attaches them to a GitHub Release:
+#   - HurricaneMapTool-<version>.exe   (Windows portable, via Electron)
+#   - HurricaneMapTool-portable.zip    (unzip anywhere, double-click launcher)
+#
+# Trigger either way:
+#   - push a tag like offline-v1.0.0
+#   - or run it manually from the Actions tab (workflow_dispatch); manual
+#     runs upload build artifacts instead of creating a release.
+name: Build offline distributables
+
+on:
+  push:
+    tags:
+      - 'offline-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build Windows portable exe
+        working-directory: desktop
+        run: |
+          npm install
+          npx electron-builder --win portable
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HurricaneMapTool-windows-exe
+          path: desktop/dist/*.exe
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop/dist/*.exe
+
+  portable-zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble portable zip
+        run: |
+          mkdir -p out/HurricaneMapTool
+          cp -r index.html css js vendor offline launcher README.md OFFLINE.md out/HurricaneMapTool/
+          cd out && zip -r -q HurricaneMapTool-portable.zip HurricaneMapTool
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HurricaneMapTool-portable-zip
+          path: out/HurricaneMapTool-portable.zip
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/HurricaneMapTool-portable.zip

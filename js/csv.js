@@ -78,24 +78,40 @@
     const needGeocode = rows.filter(r => r.lat == null || r.lon == null);
 
     if (needGeocode.length > 0) {
-      onProgress(`Geocoding ${needGeocode.length} row(s) without lat/lon (rate-limited 1/sec)…`);
-      for (let i = 0; i < needGeocode.length; i += 1) {
-        const r = needGeocode[i];
-        const query = buildAddressQuery(r);
-        if (!query) continue;
-        try {
-          const result = await geocodeAddress(query);
-          if (result) {
-            r.lat = result.lat;
-            r.lon = result.lon;
-            r.geocoded = true;
+      const online = (typeof navigator === 'undefined') || navigator.onLine !== false;
+      let zipHits = 0;
+
+      if (online) {
+        onProgress(`Geocoding ${needGeocode.length} row(s) without lat/lon (rate-limited 1/sec)…`);
+        for (let i = 0; i < needGeocode.length; i += 1) {
+          const r = needGeocode[i];
+          const query = buildAddressQuery(r);
+          if (!query) { zipFallback(r) && zipHits++; continue; }
+          try {
+            const result = await geocodeAddress(query);
+            if (result) {
+              r.lat = result.lat;
+              r.lon = result.lon;
+              r.geocoded = true;
+            } else if (zipFallback(r)) zipHits++;
+          } catch (err) {
+            // Nominatim unreachable or errored — fall back to the bundled
+            // ZIP centroid before giving up on the row.
+            console.warn('Geocode failed for', query, err);
+            if (zipFallback(r)) zipHits++;
           }
-        } catch (err) {
-          // Log but keep going; row will be skipped from the map
-          console.warn('Geocode failed for', query, err);
+          onProgress(`Geocoded ${i + 1} / ${needGeocode.length}…`);
+          if (i < needGeocode.length - 1) await sleep(GEOCODE_DELAY_MS);
         }
-        onProgress(`Geocoded ${i + 1} / ${needGeocode.length}…`);
-        if (i < needGeocode.length - 1) await sleep(GEOCODE_DELAY_MS);
+      } else {
+        // Offline: resolve what we can from the bundled US ZIP centroids —
+        // no per-row rate limit needed, it's a local lookup.
+        onProgress(`Offline — placing ${needGeocode.length} row(s) by ZIP code centroid…`);
+        needGeocode.forEach(r => { if (zipFallback(r)) zipHits++; });
+      }
+
+      if (zipHits > 0) {
+        onProgress(`${zipHits} row(s) placed at their ZIP-code centroid (approximate).`);
       }
     }
 
@@ -107,6 +123,21 @@
   function buildAddressQuery(r) {
     const parts = [r.address, r.city, r.state, r.postalCode].filter(Boolean);
     return parts.join(', ').trim() || null;
+  }
+
+  // Offline fallback: place the row at its US ZIP-code centroid from the
+  // bundled GeoNames table (offline/zipcodes-us.js). Approximate — good to
+  // the neighborhood, not the rooftop — which is fine for a 100-mile buffer.
+  function zipFallback(r) {
+    const table = window.OFFLINE_ZIP_US;
+    if (!table || !r.postalCode) return false;
+    const zip5 = String(r.postalCode).trim().slice(0, 5);
+    const hit = table[zip5];
+    if (!hit) return false;
+    r.lat = hit[0];
+    r.lon = hit[1];
+    r.geocoded = 'zip-centroid';
+    return true;
   }
 
   async function geocodeAddress(query) {

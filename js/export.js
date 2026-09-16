@@ -35,12 +35,26 @@
     ctx.fillStyle = '#dfe6ec';
     ctx.fillRect(0, 0, size.x, size.y);
 
+    // 0. Offline vector basemap (custom pane below the tiles). When tiles
+    //    are loaded they'll paint over it, same as on screen.
+    container.querySelectorAll('.leaflet-basemap-pane canvas').forEach(c => {
+      const r = c.getBoundingClientRect();
+      ctx.drawImage(c, r.left - base.left, r.top - base.top, r.width, r.height);
+    });
+
     // 1. Map tiles — already loaded <img> elements in the tile pane
     container.querySelectorAll('.leaflet-tile-pane img').forEach(img => {
       if (!img.complete || !img.naturalWidth) return;
       const r = img.getBoundingClientRect();
       ctx.drawImage(img, r.left - base.left, r.top - base.top, r.width, r.height);
     });
+
+    // 1b. Basemap city names (HTML divIcons — drawn by hand, but only when
+    //     the vector basemap is actually what's visible).
+    if (!controller.isTileLayerActive || !controller.isTileLayerActive()) {
+      drawCityLabels(ctx, map, controller.getBasemapCityLabels
+        ? controller.getBasemapCityLabels() : []);
+    }
 
     // 2. Vector overlays — the canvas-renderer canvas(es) in the overlay
     //    pane already have the cone, ww lines, track line, property dots,
@@ -128,6 +142,19 @@
         reject(e);
       }
     });
+  }
+
+  function drawCityLabels(ctx, map, cities) {
+    if (!cities || cities.length === 0) return;
+    ctx.save();
+    ctx.font = '400 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#5c6873';
+    cities.forEach(c => {
+      const pt = map.latLngToContainerPoint([c.lat, c.lon]);
+      ctx.fillText(c.name, pt.x + 5, pt.y);
+    });
+    ctx.restore();
   }
 
   function drawCallouts(ctx, map, callouts) {

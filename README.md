@@ -255,6 +255,7 @@ js/kmz.js         - KMZ/KML parsing, CONE/TRACK/WW classification, multi-file me
 js/shapefile.js   - NHC shapefile .zip parsing (via shpjs)
 js/csv.js         - CSV parsing + Nominatim fallback geocoding
 js/impact.js      - Cone-containment + buffer-distance impact logic
+js/basemap.js     - Offline Natural Earth vector basemap (under the tiles)
 js/map.js         - Leaflet map setup, track-point styling, callouts, watch/warning rendering
 js/export.js      - PNG + PDF + CSV export helpers
 js/session.js     - Snapshot/restore to localStorage (debounced save)
@@ -267,9 +268,22 @@ js/bookmarks.js   - Named saved views (per-browser; embedded in share URL)
 js/undo.js        - Bounded undo/redo stack for callouts/flags/zones
 js/toast.js       - Dismissible toast notifications (errors + key successes)
 js/app.js         - Wires the UI controls to the modules above
+offline/          - Generated Natural Earth basemap + US ZIP centroid bundles
+desktop/          - Electron shell for the Windows/macOS/Linux builds
+launcher/         - Double-click launchers for the portable zip
 vendor/           - Self-hosted Leaflet, JSZip, PapaParse, Turf, shpjs, lz-string, jsPDF
-scripts/          - Headless Node smoke test
+scripts/          - Headless Node smoke test + offline-data generator
 ```
+
+## Offline & desktop use
+
+The tool runs fully offline: a bundled Natural Earth vector basemap
+takes over when OpenStreetMap tiles are unreachable, and US ZIP-code
+centroids stand in for online geocoding. Two ready-to-hand-out builds —
+a Windows portable `.exe` and an unzip-and-double-click portable zip —
+are produced by the "Build offline distributables" GitHub Actions
+workflow. See **[OFFLINE.md](OFFLINE.md)** for the analyst workflow,
+build instructions, and offline limitations.
 
 ## Hosting it for the team (GitHub Pages)
 
