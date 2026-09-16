@@ -1,0 +1,61 @@
+{
+  "name": "hurricane-map-tool-desktop",
+  "version": "1.0.0",
+  "description": "Desktop (offline) shell for the Hurricane Map Tool",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "me.a-becker.hurricane-map-tool",
+    "productName": "Hurricane Map Tool",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js"
+    ],
+    "extraResources": [
+      {
+        "from": "..",
+        "to": "app-web",
+        "filter": [
+          "index.html",
+          "css/**/*",
+          "js/**/*",
+          "vendor/**/*",
+          "offline/**/*",
+          "README.md",
+          "OFFLINE.md"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "portable": {
+      "artifactName": "HurricaneMapTool-${version}.exe"
+    },
+    "mac": {
+      "target": [
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ],
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] }
+      ]
+    }
+  }
+}
